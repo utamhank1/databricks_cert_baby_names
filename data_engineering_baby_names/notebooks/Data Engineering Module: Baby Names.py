@@ -1,4 +1,9 @@
 # Databricks notebook source
+# MAGIC %python
+# MAGIC %pip install black tokenize-rt
+
+# COMMAND ----------
+
 # MAGIC %md # SA coding assessment: Data Engineering, Baby Names
 # MAGIC ## Version 2022.02
 # MAGIC
@@ -81,19 +86,21 @@ dbutils.fs.head(baby_names_path)
 
 # Helper function for question 1.
 
+
 def extract_data(json_file_path, columns, multilinearity):
+    # Read in raw json data.
+    raw_df = spark.read.json(path=json_file_path, multiLine=multilinearity)
 
-  # Read in raw json data.
-  raw_df = spark.read.json(path = json_file_path, multiLine = multilinearity)
+    # Expand "data" nested list into individual rows.
+    exploded_df = raw_df.select(explode(raw_df.data))
 
-  # Expand "data" nested list into individual rows.
-  exploded_df = raw_df.select(explode(raw_df.data))
-  
-  # Expand "data" array in each row into columns with associated headers using python list comprehension.
-  data_w_columns = exploded_df.select(*(exploded_df["col"][i].alias(elem) for i, elem in enumerate(columns)))
+    # Expand "data" array in each row into columns with associated headers using python list comprehension.
+    data_w_columns = exploded_df.select(
+        *(exploded_df["col"][i].alias(elem) for i, elem in enumerate(columns))
+    )
 
-  return data_w_columns
-  """
+    return data_w_columns
+    """
   This function extracts data from a given json_file_path and reads it to a dataframe object.
 
   Args:
@@ -112,20 +119,107 @@ def extract_data(json_file_path, columns, multilinearity):
 
 # DBTITLE 1,Code Answer
 # Please provide your code answer for Question 1 here
+from pyspark.sql.functions import explode
 json_file_path = "dbfs:/tmp/user_12df1ddd/rows.json"
-columns = ["sid", "id", "position", "created_at", "created_meta", "updated_at", "updated_meta", "meta", "year", "first_name", "county", "sex", "count"]
+columns = [
+    "sid",
+    "id",
+    "position",
+    "created_at",
+    "created_meta",
+    "updated_at",
+    "updated_meta",
+    "meta",
+    "year",
+    "first_name",
+    "county",
+    "sex",
+    "count",
+]
 
 # Read in, and extract specific columns to top level from raw data with helper function.
-data_w_columns = extract_data(json_file_path = json_file_path, columns = columns, multilinearity = True)
+data_w_columns = extract_data(
+    json_file_path=json_file_path, columns=columns, multilinearity=True
+)
 
 # Create temp table from DataFrame.
 data_w_columns.createOrReplaceTempView("baby_names")
+
+
+# COMMAND ----------
+
+# Sanity Tests for Question 1 (Would implement as unittests if given databricks repo permissions).
+from pyspark.sql.functions import size, col
+
+num_test_passed = 0
+raw_df = spark.read.json(path=json_file_path, multiLine=True)
+
+# Is the raw json DataFrame empty?
+if len(raw_df.head(1)) > 0:
+    num_test_passed += 1
+    print("Raw json DataFrame is not empty................TEST PASSED.")
+
+else:
+    print("Raw json Dataframe is empty................TEST FAILED!")
+
+# Get count of records in raw json DataFrame.
+num_records_raw_json = (
+    raw_df.withColumn("data_len", size(col("data"))).select("data_len").collect()[0][0]
+)
+
+# Get count of rows in output Dataframe.
+rows_dataframe = data_w_columns.count()
+print(f"The number of records in the raw json is: {num_records_raw_json}")
+print(f"The number of rows in the output DataFrame is: {rows_dataframe}")
+
+# Do the number of rows in the output dataframe match the number of elements in the raw json DataFrame?
+if num_records_raw_json == rows_dataframe:
+    num_test_passed += 1
+    print(
+        "Number of records in raw json matches number of rows in output DataFrame................TEST PASSED."
+    )
+else:
+    print(
+        "Number of elements in raw json do not match rows in DataFrame................TEST FAILED!"
+    )
+
+# Are there duplicates in the output DataFrame?
+if data_w_columns.count() == data_w_columns.dropDuplicates(columns).count():
+    num_test_passed += 1
+    print("Output DataFrame has no duplicates................TEST PASSED.")
+elif data_w_columns.count() > data_w_columns.dropDuplicates(columns).count():
+    print("Ouput DataFrame has duplicate records................TEST FAILED!")
+else:
+    print("Output DataFrame is missing records................TEST FAILED!")
+
+# Does the created view match the original number of records?
+row_count_view = spark.sql("select count(*) as rowcount from baby_names").collect()[0][
+    0
+]
+
+if num_records_raw_json == row_count_view:
+    num_test_passed += 1
+    print(
+        "Rows in outputted view matches number of original records................TEST PASSED."
+    )
+elif num_records_raw_json >= row_count_view:
+    print("Outputted view is missing records................TEST FAILED!")
+else:
+    print("Outputted view contains duplicate records................TEST FAILED!")
+
+print(f"{num_test_passed}/4 TESTS PASSED SUCCESSFULLY.")
 
 # COMMAND ----------
 
 # DBTITLE 1,Written Answer
 # MAGIC %md
 # MAGIC Please provide your brief, written description of your code here.
+# MAGIC ##### This code mainly uses a helper function *extract_data()*. 
+# MAGIC ###### This function (1) reads in the multi-line json file, (2) uses the spark sql function explode() to expand the nested array data structure defined by the "data" column name into multiple rows with one array each, and (3) uses python list comprehension to iterate over every element in the array in every row, alias the columns with the desired field names and outputs the dataframe with the desired fields extracted to the top-level. This function has O(N) time and space complexity, where N is the size of the JSON data. 
+# MAGIC
+# MAGIC ###### After the dataframe has been created, we create a temp table using the createOrReplaceTempView() function.
+# MAGIC
+# MAGIC ###### We then run a series of tests to validate the data and the associated created view.
 
 # COMMAND ----------
 
