@@ -79,25 +79,46 @@ dbutils.fs.head(baby_names_path)
 
 # COMMAND ----------
 
-import sys, os
-sys.path.append(os.path.abspath('/Workspace/Repos/utamhank1@gmail.com/databricks_sa_exam/data_engineering_baby_names/data_engineering_baby_names_helpers'))
-print("\n".join(sys.path))
+# Helper function for question 1.
+
+def extract_data(json_file_path, columns, multilinearity):
+
+  # Read in raw json data.
+  raw_df = spark.read.json(path = json_file_path, multiLine = multilinearity)
+
+  # Expand "data" nested list into individual rows.
+  exploded_df = raw_df.select(explode(raw_df.data))
+  
+  # Expand "data" array in each row into columns with associated headers using python list comprehension.
+  data_w_columns = exploded_df.select(*(exploded_df["col"][i].alias(elem) for i, elem in enumerate(columns)))
+
+  return data_w_columns
+  """
+  This function extracts data from a given json_file_path and reads it to a dataframe object.
+
+  Args:
+    json_file_path: 
+      A string representing the path within the dbfs where your json file lives.
+    multilinearity: 
+      A boolean representing whether the file is single line json or multilinear.
+    columns:
+      A list of column headers for the extracted data.
+
+  Returns:
+    A Pyspark DataFrame.
+  """
 
 # COMMAND ----------
 
 # DBTITLE 1,Code Answer
 # Please provide your code answer for Question 1 here
-from pyspark.sql.functions import size, col, explode
-from data_engineering_baby_names_helpers import baby_names_helpers
 json_file_path = "dbfs:/tmp/user_12df1ddd/rows.json"
 columns = ["sid", "id", "position", "created_at", "created_meta", "updated_at", "updated_meta", "meta", "year", "first_name", "county", "sex", "count"]
 
+# Read in, and extract specific columns to top level from raw data with helper function.
 data_w_columns = extract_data(json_file_path = json_file_path, columns = columns, multilinearity = True)
-# raw_df = spark.read.json(path = json_file_path, multiLine = True)
-# raw_df.withColumn("lang_len",size(col("data"))).show(10)
-# exploded_df = raw_df.select(explode(raw_df.data))
-# data_w_columns = exploded_df.select(*(exploded_df["col"][i].alias(elem) for i, elem in enumerate(columns)))
-data_w_columns.show(10)
+
+# Create temp table from DataFrame.
 data_w_columns.createOrReplaceTempView("baby_names")
 
 # COMMAND ----------
