@@ -79,8 +79,26 @@ dbutils.fs.head(baby_names_path)
 
 # COMMAND ----------
 
+import sys, os
+sys.path.append(os.path.abspath('/Workspace/Repos/utamhank1@gmail.com/databricks_sa_exam/data_engineering_baby_names/data_engineering_baby_names_helpers'))
+print("\n".join(sys.path))
+
+# COMMAND ----------
+
 # DBTITLE 1,Code Answer
 # Please provide your code answer for Question 1 here
+from pyspark.sql.functions import size, col, explode
+from data_engineering_baby_names_helpers import baby_names_helpers
+json_file_path = "dbfs:/tmp/user_12df1ddd/rows.json"
+columns = ["sid", "id", "position", "created_at", "created_meta", "updated_at", "updated_meta", "meta", "year", "first_name", "county", "sex", "count"]
+
+data_w_columns = extract_data(json_file_path = json_file_path, columns = columns, multilinearity = True)
+# raw_df = spark.read.json(path = json_file_path, multiLine = True)
+# raw_df.withColumn("lang_len",size(col("data"))).show(10)
+# exploded_df = raw_df.select(explode(raw_df.data))
+# data_w_columns = exploded_df.select(*(exploded_df["col"][i].alias(elem) for i, elem in enumerate(columns)))
+data_w_columns.show(10)
+data_w_columns.createOrReplaceTempView("baby_names")
 
 # COMMAND ----------
 
