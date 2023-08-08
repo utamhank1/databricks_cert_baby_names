@@ -231,7 +231,30 @@ print(f"{num_test_passed}/4 TESTS PASSED SUCCESSFULLY.")
 # COMMAND ----------
 
 # DBTITLE 1,Code Answer
-# Please provide your code answer for Question 2 here. You will need separate cells for your SQL answer and your Python or Scala answer.
+# MAGIC %sql
+# MAGIC /* Please provide your code answer for Question 2 here. You will need separate cells for your SQL answer and your Python or Scala answer. */
+# MAGIC SELECT
+# MAGIC   YEAR,
+# MAGIC   FIRST(FIRST_NAME) AS FIRST_NAME,
+# MAGIC   MAX(TOTAL) OCCURRANCES
+# MAGIC FROM
+# MAGIC   (
+# MAGIC     SELECT
+# MAGIC       YEAR,
+# MAGIC       FIRST_NAME,
+# MAGIC       SUM(COUNT) AS TOTAL
+# MAGIC     FROM
+# MAGIC       BABY_NAMES
+# MAGIC     GROUP BY
+# MAGIC       FIRST_NAME,
+# MAGIC       YEAR
+# MAGIC     ORDER BY
+# MAGIC       TOTAL DESC
+# MAGIC   )
+# MAGIC GROUP BY
+# MAGIC   YEAR
+# MAGIC ORDER BY
+# MAGIC   YEAR ASC
 
 # COMMAND ----------
 
