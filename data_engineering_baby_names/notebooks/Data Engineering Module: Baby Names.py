@@ -79,8 +79,47 @@ dbutils.fs.head(baby_names_path)
 
 # COMMAND ----------
 
+# Helper function for question 1.
+
+def extract_data(json_file_path, columns, multilinearity):
+
+  # Read in raw json data.
+  raw_df = spark.read.json(path = json_file_path, multiLine = multilinearity)
+
+  # Expand "data" nested list into individual rows.
+  exploded_df = raw_df.select(explode(raw_df.data))
+  
+  # Expand "data" array in each row into columns with associated headers using python list comprehension.
+  data_w_columns = exploded_df.select(*(exploded_df["col"][i].alias(elem) for i, elem in enumerate(columns)))
+
+  return data_w_columns
+  """
+  This function extracts data from a given json_file_path and reads it to a dataframe object.
+
+  Args:
+    json_file_path: 
+      A string representing the path within the dbfs where your json file lives.
+    multilinearity: 
+      A boolean representing whether the file is single line json or multilinear.
+    columns:
+      A list of column headers for the extracted data.
+
+  Returns:
+    A Pyspark DataFrame.
+  """
+
+# COMMAND ----------
+
 # DBTITLE 1,Code Answer
 # Please provide your code answer for Question 1 here
+json_file_path = "dbfs:/tmp/user_12df1ddd/rows.json"
+columns = ["sid", "id", "position", "created_at", "created_meta", "updated_at", "updated_meta", "meta", "year", "first_name", "county", "sex", "count"]
+
+# Read in, and extract specific columns to top level from raw data with helper function.
+data_w_columns = extract_data(json_file_path = json_file_path, columns = columns, multilinearity = True)
+
+# Create temp table from DataFrame.
+data_w_columns.createOrReplaceTempView("baby_names")
 
 # COMMAND ----------
 
