@@ -456,32 +456,40 @@ visitors_path = "/interview-datasets/sa/births/births-with-visitor-data.json"
 
 # DBTITLE 1,#1 - Code Answer
 ## Hint: the code below will read in the downloaded JSON files. However, the xml column needs to be given structure. Consider using a UDF.
-from pyspark.sql.functions import udf, col, explode
+from pyspark.sql.functions import udf, col, explode, array, struct, lit
 from pyspark.sql.types import IntegerType, StructType, StructField, StringType
 import xml.etree.ElementTree as ET
 
-visitor_xml_schema = StructType([
-  StructField("id", IntegerType(), True),
-  StructField("age", IntegerType(), True),
-  StructField("sex", StringType(), True)
-])
+# visitor_xml_schema = StructType(
+#     [
+#         StructField("id", IntegerType(), True),
+#         StructField("age", IntegerType(), True),
+#         StructField("sex", StringType(), True),
+#     ]
+# )
 
-def select_xml(text, xpath):
-  nodes = [x.text for x in text.findall(xpath) if isinstance(x, ET.Element)]
-  return next(iter(nodes), None)
+visitor_xml_schema = "array<struct<id:string, age:string, sex:string>>"
+def xml_parser(key):
+    root_node = ET.fromstring(key)
+    return list(map(lambda t: t.attrib, root_node.findall("visitor")))
+
 
 def extract_xml_key_values(xml_payload):
-  text = ET.fromstring(xml_payload)
-  return {
-    "id": select_xml(text, "id"),
-    "age": select_xml(text, "age"),
-    "sex": select_xml(text, "sex")
-  }
+    text = ET.fromstring(xml_payload)
+    return {
+        "id": select_xml(text, "id"),
+        "age": select_xml(text, "age"),
+        "sex": select_xml(text, "sex"),
+    }
 
-extract_xml_udf = udf(extract_xml_key_values, visitor_xml_schema)
+
+extract_xml_udf = udf(xml_parser, visitor_xml_schema)
 
 df = spark.read.option("inferSchema", True).json(visitors_path)
-df.withColumn("info", extract_xml_udf("visitors")).select("sid", "info.id", "info.age", "info.sex").show(100)
+df.select("sid", explode(extract_xml_udf('visitors')).alias("visitors")).select("sid", "visitors.*").show(100)
+# df.select(
+#     explode(array(*[struct(extract_xml_udf("visitors"))])).alias("visitors")
+# ).select("visitors.*").show()
 
 # COMMAND ----------
 
