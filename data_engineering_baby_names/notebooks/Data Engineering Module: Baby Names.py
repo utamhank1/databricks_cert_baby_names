@@ -351,34 +351,69 @@ top_baby_names_ranked.show()
 # MAGIC println(s"Package import runtime: $importRuntime ms")
 # MAGIC
 # MAGIC /* Cast count column in DataFrame to integer-type. */
-# MAGIC val data_w_columns_int_count_scala = data_w_columns_scala.withColumn("count",col("count").cast(IntegerType))
+# MAGIC val data_w_columns_int_count_scala =
+# MAGIC   data_w_columns_scala.withColumn("count", col("count").cast(IntegerType))
 # MAGIC
 # MAGIC val castTimestamp = System.currentTimeMillis()
 # MAGIC val castRuntime = castTimestamp - importTimestamp
 # MAGIC println(s"Integer cast runtime: $castRuntime ms")
 # MAGIC
 # MAGIC /* Calculate total count for each baby name per year (SQL code inner query). */
-# MAGIC val total_count_df_scala = data_w_columns_int_count_scala.groupBy(year($"YEAR").alias("YEAR"), $"FIRST_NAME").agg(sum($"COUNT").alias("TOTAL")).orderBy(desc("TOTAL"))
+# MAGIC val total_count_df_scala = data_w_columns_int_count_scala
+# MAGIC   .groupBy(year($"YEAR").alias("YEAR"), $"FIRST_NAME")
+# MAGIC   .agg(sum($"COUNT").alias("TOTAL"))
+# MAGIC   .orderBy(desc("TOTAL"))
 # MAGIC
 # MAGIC /* Create window specification for windowing function. */
 # MAGIC val window = Window.partitionBy("YEAR").orderBy(desc("TOTAL"))
 # MAGIC
 # MAGIC /* Outer query using window function to calculate the most popular names per year. */
-# MAGIC val top_baby_names_ranked_scala = total_count_df_scala.select($"YEAR", first($"FIRST_NAME").over(window).alias("FIRST_NAME"), $"TOTAL").groupBy("YEAR").agg(first($"FIRST_NAME").alias("FIRST_NAME"), max($"TOTAL").alias("OCCURENCES")).orderBy("YEAR")
+# MAGIC val top_baby_names_ranked_scala = total_count_df_scala
+# MAGIC   .select(
+# MAGIC     $"YEAR",
+# MAGIC     first($"FIRST_NAME").over(window).alias("FIRST_NAME"),
+# MAGIC     $"TOTAL"
+# MAGIC   )
+# MAGIC   .groupBy("YEAR")
+# MAGIC   .agg(
+# MAGIC     first($"FIRST_NAME").alias("FIRST_NAME"),
+# MAGIC     max($"TOTAL").alias("OCCURENCES")
+# MAGIC   )
+# MAGIC   .orderBy("YEAR")
 # MAGIC
 # MAGIC val queryTimestamp = System.currentTimeMillis()
 # MAGIC val queryRuntime = queryTimestamp - castTimestamp
 # MAGIC println(s"Query runtime: $queryRuntime ms")
 # MAGIC
 # MAGIC top_baby_names_ranked_scala.show()
+# MAGIC
 
 # COMMAND ----------
 
 # DBTITLE 1,Written Answer
 # MAGIC %md
 # MAGIC Please write your written answer here.
-# MAGIC #### Are there any performance considerations when choosing a language API (SQL vs Python vs Scala) in the context of Spark?
-# MAGIC ##### There are advantages and disadvantages to either of the 3 approaches to querying the data. 
+# MAGIC #### *Are there any performance considerations when choosing a language API (SQL vs Python vs Scala) in the context of Spark?*
+# MAGIC #### There are advantages and disadvantages to either of the 3 approaches to querying the data in the context of Apache Spark.
+# MAGIC
+# MAGIC ### SQL.
+# MAGIC #### Advantages:
+# MAGIC ##### SQL is the most well-known and widely used querying language in the world, and the simplest to implement and understand by most technical and non-technical parties. Spark also offers a variety of SQL performance tuning functions such as caching and hints that can be used to reduce the time and space complexity of the query (https://spark.apache.org/docs/latest/sql-performance-tuning.html). SQL performs best on smaller, simpler query workloads against well-organized and indexed relational database tables. In the case of this assignment, this is why the SQL query seemed to perform the fastest.
+# MAGIC #### Disadvantages: 
+# MAGIC ##### SQL is not a robust language for more complex analytical and calculation-oriented workloads (such as those required by more advanced data science or ML algorithms.). SQL also does not easily support programmatic workflow tools such as variables and unit testing. If these are not required however, it results in the fastest performance on Spark.
+# MAGIC
+# MAGIC ### Python.
+# MAGIC #### Advantages:
+# MAGIC ##### Python is the most popular and widely used general-purpose programming language in data engineering/data science. In the context of spark, the pyspark library brings the tools used in spark into any python VM. This, buttressed by the wide range of open source third party libraries, make python a great choice for complex analytical workflows and algorithms (such as those used in ML). 
+# MAGIC #### Disadvantages:
+# MAGIC ##### Python is a *interpreted* as opposed to compiled programming language, which makes it slower for a large number of operations than a compiled language like Java. In addition, code written with PySpark needs to be translated for the Java Virtual Machine (JVM) used by Spark, this can result in some performance overhead. For larger computational tasks however, the performance benefits can outweight the costs, but in the case of this assignment, the SQL code performed faster due to the nature of the queried data and the operations performed. Note however, that python code used to extract and clean the data from the raw json before it was in a state to be queried by SQL, so overall python is the most versatile of the two.
+# MAGIC
+# MAGIC ### Scala.
+# MAGIC #### Advantages: 
+# MAGIC ##### Scala is a static, *compiled* general purpose programming language based on java, which is spark's original language. In theory, this leads to better performance with the underlying spark JVM engine. Libraries that are part of java can be natively run in scala and therefore the JVM. The compiled as opposed to interpretted nature of the language makes it faster for many operations. Scala has better support for functional programming techniques, which are generally faster than procedural ones due to avoidance of storing states and mutable data structures.
+# MAGIC #### Disadvantages:
+# MAGIC ##### Scala has a more verbose syntax and a steeper learning curve which can make it tougher to work with for beginner programmers. On a single node cluster, scala would have a performance advantage (all else being equal), but due to spark's computationally distributed nature, and the performance advantages of scala over python seem to decrease the more compute clusters that there are. In the case of our data, it seems that the query performance of both python and scala were similar, with python even having a small edge when it came to query time. There could be a few reasons for this: (1) Our compute cluster has four nodes as opposed to 1, (2) Using the pyspark module's Py4j tool (which allows the API to interface with the JVM), there are certain optimizations that are being made "under the hood" which aren't possible with scala, since scala code is run directly against the JVM. One of these is Catalyst optimizer, which can optimize high level code into a more efficient execution plan than native scala can alone. These may explain the slightly better performance we are getting using Python.
+# MAGIC
 
 # COMMAND ----------
 
