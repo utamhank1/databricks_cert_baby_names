@@ -259,14 +259,28 @@ print(f"{num_test_passed}/4 TESTS PASSED SUCCESSFULLY.")
 
 # COMMAND ----------
 
+import time
+
+# Time counter for runtime printing purposes.
+startTimestamp = time.process_time()
+
 from pyspark.sql.types import IntegerType
 from pyspark.sql.functions import year, first, max, sum
 from pyspark.sql.window import Window
+
+
+importTimestamp = time.process_time()
+importTime = importTimestamp - startTimestamp
+print(f"Package import runtime: {round(importTime*1000)} ms")
 
 # Convert "count" column datatype from string to integer for aggregation.
 data_w_columns_int_count = data_w_columns.withColumn(
     "COUNT", data_w_columns["COUNT"].cast(IntegerType())
 )
+
+castTimestamp = time.process_time()
+castTime = castTimestamp - importTimestamp
+print(f"Integer cast runtime: {round(castTime*1000)} ms")
 
 # Calculate the total count of each baby name in each year (subquery in the SQL code).
 total_counts_df = (
@@ -284,8 +298,13 @@ top_baby_names_ranked = (
     .groupBy("YEAR")
     .agg(first("FIRST_NAME").alias("FIRST_NAME"), max("TOTAL").alias("OCCURRENCES"))
     .orderBy("YEAR")
-    .show()
 )
+
+queryTimestamp = time.process_time()
+queryTime = queryTimestamp - castTimestamp
+print(f"Query runtime: {round(queryTime*1000)} ms")
+
+top_baby_names_ranked.show()
 
 # COMMAND ----------
 
