@@ -215,7 +215,8 @@ print(f"{num_test_passed}/4 TESTS PASSED SUCCESSFULLY.")
 # MAGIC %md
 # MAGIC Please provide your brief, written description of your code here.
 # MAGIC ##### This code mainly uses a helper function *extract_data()*. 
-# MAGIC ###### This function (1) reads in the multi-line json file, (2) uses the spark sql function explode() to expand the nested array data structure defined by the "data" column name into multiple rows with one array each, and (3) uses python list comprehension to iterate over every element in the array in every row, alias the columns with the desired field names and outputs the dataframe with the desired fields extracted to the top-level. This function has O(N) time and space complexity, where N is the size of the JSON data. 
+# MAGIC ###### This function (1) reads in the multi-line json file, (2) uses the spark sql function explode() to expand the nested array data structure defined by the "data" column name into multiple rows with one array each, and (3) uses python list comprehension to iterate over every element in the array in every row, alias the columns with the desired field names and outputs the dataframe with the desired fields extracted to the top-level. This function has O(N^2) time and space complexity due to the need to access every elem in every row of the exploded data structure in step(2), but is running as a pythonic list comprehension instead of a traditional for loop and therefore is more optimized in this context. 
+# MAGIC ######*One Caveat*: If the number of extracted columns will always be static as is assumed, then the algorithm would scale as **O(N)** in practice since the number of records per row would always be the same.
 # MAGIC
 # MAGIC ###### After the dataframe has been created, we create a temp table using the createOrReplaceTempView() function.
 # MAGIC
@@ -293,6 +294,11 @@ top_baby_names_ranked = (
 # DBTITLE 1,Written Answer
 # MAGIC %md
 # MAGIC Please provide your brief, written description of your code here.
+# MAGIC #### SQL Code.
+# MAGIC ##### In this SQL query, we first run a subquery to calculate the occurences of each individual name in every year with a simple summation of the count column grouping by the name and the year and ordering by the summation. The outer query then selects only the first (and therefore the name with the highest count summation, since the subquery is ordered) first_name from the subquery for each year to output a table with the most popular baby name per year. This query runs with a space and time complexity of O(N) where N is the number of rows in the queried table.
+# MAGIC
+# MAGIC #### Python Code.
+# MAGIC ##### In the Python code we take a similar subquery approach using the DataFrame API. But before we do that, we have to prepare the data in the dataframe for mathematical operations, specifically, the *count* column, since it is by default a string-type. In lines 5-8 we cast the count column to an integer-type with the .cast() method.After the column is prepared, we first (1) replicate the subquery in the SQL code with the DataFrame API (lines 10-15). For the outer query (lines 17-27), we first implement window partitioning on the dataframe in step (1) to partition by year with the count of the name occurences, then select the first first_name from each partition on the highest count summation (max(TOTAL)) (representing the name the was the most popular in that given year). This code runs with a space and time complexity of O(N) where N is the number of rows in the DataFrame.
 
 # COMMAND ----------
 
