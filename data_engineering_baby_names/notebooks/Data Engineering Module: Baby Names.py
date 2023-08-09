@@ -231,7 +231,62 @@ print(f"{num_test_passed}/4 TESTS PASSED SUCCESSFULLY.")
 # COMMAND ----------
 
 # DBTITLE 1,Code Answer
-# Please provide your code answer for Question 2 here. You will need separate cells for your SQL answer and your Python or Scala answer.
+# MAGIC %sql
+# MAGIC /* Please provide your code answer for Question 2 here. You will need separate cells for your SQL answer and your Python or Scala answer.*/
+# MAGIC /* Outer query to select the top baby name in each year based on total count of each name in the subquery */
+# MAGIC SELECT
+# MAGIC   YEAR,
+# MAGIC   FIRST(FIRST_NAME) AS FIRST_NAME,
+# MAGIC   MAX(TOTAL) OCCURRANCES
+# MAGIC FROM
+# MAGIC   /* Subquery to extract total count of each baby name in each year */
+# MAGIC   (
+# MAGIC     SELECT
+# MAGIC       YEAR,
+# MAGIC       FIRST_NAME,
+# MAGIC       SUM(COUNT) AS TOTAL
+# MAGIC     FROM
+# MAGIC       BABY_NAMES
+# MAGIC     GROUP BY
+# MAGIC       FIRST_NAME,
+# MAGIC       YEAR
+# MAGIC     ORDER BY
+# MAGIC       TOTAL DESC
+# MAGIC   )
+# MAGIC GROUP BY
+# MAGIC   YEAR
+# MAGIC ORDER BY
+# MAGIC   YEAR ASC
+
+# COMMAND ----------
+
+from pyspark.sql.types import IntegerType
+from pyspark.sql.functions import year, first, max, sum
+from pyspark.sql.window import Window
+
+# Convert "count" column datatype from string to integer for aggregation.
+data_w_columns_int_count = data_w_columns.withColumn(
+    "COUNT", data_w_columns["COUNT"].cast(IntegerType())
+)
+
+# Calculate the total count of each baby name in each year (subquery in the SQL code).
+total_counts_df = (
+    data_w_columns_int_count.groupBy(year("YEAR").alias("YEAR"), "FIRST_NAME")
+    .agg(sum("COUNT").alias("TOTAL"))
+    .orderBy("TOTAL", ascending=False)
+)
+
+# Specify a window spec to calculate the name with the largest total count per year.
+window_spec = Window.partitionBy("YEAR").orderBy(total_counts_df["TOTAL"].desc())
+top_baby_names_ranked = (
+    total_counts_df.select(
+        "Year", first("FIRST_NAME").over(window_spec).alias("FIRST_NAME"), "TOTAL"
+    )
+    .groupBy("YEAR")
+    .agg(first("FIRST_NAME").alias("FIRST_NAME"), max("TOTAL").alias("OCCURRENCES"))
+    .orderBy("YEAR")
+    .show()
+)
 
 # COMMAND ----------
 
@@ -261,10 +316,10 @@ print(f"{num_test_passed}/4 TESTS PASSED SUCCESSFULLY.")
 # MAGIC Imagine that a new upstream system now automatically adds an XML field to the JSON baby dataset.  The added field is called visitors. It contains an XML string with visitor information for a given birth. We have simulated this upstream system by creating another JSON file with the additional field.  
 # MAGIC
 # MAGIC Using the JSON dataset at dbfs:/interview-datasets/sa/births/births-with-visitor-data.json, do the following:
-# MAGIC 0. Read the births-with-visitor-data.json file into a dataframe and parse the nested XML fields into columns and print the total record count.
-# MAGIC 0. Find the county with the highest average number of visitors across all births in that county
-# MAGIC 0. Find the average visitor age for a birth in the county of KINGS
-# MAGIC 0. Find the most common birth visitor age in the county of KINGS
+# MAGIC 1. Read the births-with-visitor-data.json file into a dataframe and parse the nested XML fields into columns and print the total record count.
+# MAGIC 2. Find the county with the highest average number of visitors across all births in that county
+# MAGIC 3. Find the average visitor age for a birth in the county of KINGS
+# MAGIC 4. Find the most common birth visitor age in the county of KINGS
 # MAGIC
 
 # COMMAND ----------
