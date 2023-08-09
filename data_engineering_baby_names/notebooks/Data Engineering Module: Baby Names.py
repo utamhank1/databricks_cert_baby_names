@@ -318,13 +318,25 @@ top_baby_names_ranked = (
 
 # MAGIC %scala
 # MAGIC /* Writing query code in scala for purposes of answering question #3: Do not grade for purposes of answering question #2 (Not written in best style as I am still learning). */
+# MAGIC
+# MAGIC /* Time counter for runtime printing purposes */
+# MAGIC val startTimestamp = System.currentTimeMillis()
+# MAGIC
 # MAGIC import org.apache.spark.sql.types.IntegerType
 # MAGIC import org.apache.spark.sql.functions.{year, first, sum, max, desc}
 # MAGIC import org.apache.spark.sql.functions.col
 # MAGIC import org.apache.spark.sql.expressions.Window
 # MAGIC
+# MAGIC val importTimestamp = System.currentTimeMillis()
+# MAGIC val importRuntime = importTimestamp - startTimestamp
+# MAGIC println(s"Package import runtime: $importRuntime ms")
+# MAGIC
 # MAGIC /* Cast count column in DataFrame to integer-type. */
 # MAGIC val data_w_columns_int_count_scala = data_w_columns_scala.withColumn("count",col("count").cast(IntegerType))
+# MAGIC
+# MAGIC val castTimestamp = System.currentTimeMillis()
+# MAGIC val castRuntime = castTimestamp - importTimestamp
+# MAGIC println(s"Integer cast runtime: $castRuntime ms")
 # MAGIC
 # MAGIC /* Calculate total count for each baby name per year (SQL code inner query). */
 # MAGIC val total_count_df_scala = data_w_columns_int_count_scala.groupBy(year($"YEAR").alias("YEAR"), $"FIRST_NAME").agg(sum($"COUNT").alias("TOTAL")).orderBy(desc("TOTAL"))
@@ -334,6 +346,10 @@ top_baby_names_ranked = (
 # MAGIC
 # MAGIC /* Outer query using window function to calculate the most popular names per year. */
 # MAGIC val top_baby_names_ranked_scala = total_count_df_scala.select($"YEAR", first($"FIRST_NAME").over(window).alias("FIRST_NAME"), $"TOTAL").groupBy("YEAR").agg(first($"FIRST_NAME").alias("FIRST_NAME"), max($"TOTAL").alias("OCCURENCES")).orderBy("YEAR")
+# MAGIC
+# MAGIC val queryTimestamp = System.currentTimeMillis()
+# MAGIC val queryRuntime = queryTimestamp - castTimestamp
+# MAGIC println(s"Query runtime: $queryRuntime ms")
 # MAGIC
 # MAGIC top_baby_names_ranked_scala.show()
 
