@@ -311,9 +311,33 @@ top_baby_names_ranked = (
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC /* Writing sql code in scala for purposes of answering question #3: Do not grade for purposes of answering question #2 (Not written in best style as I am still learning). */
+# MAGIC import org.apache.spark.sql.types.IntegerType
+# MAGIC import org.apache.spark.sql.types.DateType
+# MAGIC import org.apache.spark.sql.functions.{year, first, sum, max, desc}
+# MAGIC import org.apache.spark.sql.functions.col
+# MAGIC
+# MAGIC /* Create Spark DataFram. */
+# MAGIC val data_w_columns_scala = spark.sql("select * from baby_names")
+# MAGIC
+# MAGIC /* Cast count column in DataFrame to integer-type. */
+# MAGIC val data_w_columns_int_count_scala = data_w_columns_scala.withColumn("count",col("count").cast(IntegerType))
+# MAGIC
+# MAGIC /* Calculate total count for each baby name per year */
+# MAGIC val total_count_df_scala = data_w_columns_int_count_scala.groupBy(year($"YEAR").alias("YEAR"), $"FIRST_NAME").agg(sum($"COUNT").alias("TOTAL")).orderBy(desc("TOTAL"))
+# MAGIC
+# MAGIC total_count_df_scala.show()
+# MAGIC
+# MAGIC
+
+# COMMAND ----------
+
 # DBTITLE 1,Written Answer
 # MAGIC %md
 # MAGIC Please write your written answer here.
+# MAGIC #### Are there any performance considerations when choosing a language API (SQL vs Python vs Scala) in the context of Spark?
+# MAGIC ##### There are advantages and disadvantages to either of the 3 approaches to querying the data. 
 
 # COMMAND ----------
 
