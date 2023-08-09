@@ -262,10 +262,11 @@ print(f"{num_test_passed}/4 TESTS PASSED SUCCESSFULLY.")
 
 from pyspark.sql.types import IntegerType
 from pyspark.sql.functions import year, first, max, sum
+from pyspark.sql.window import Window
 
 # Convert "count" column datatype from string to integer for aggregation.
 data_w_columns_int_count = data_w_columns.withColumn(
-    "count", data_w_columns["count"].cast(IntegerType())
+    "COUNT", data_w_columns["COUNT"].cast(IntegerType())
 )
 
 # Calculate the total count of each baby name in each year (subquery in the SQL code).
@@ -273,7 +274,19 @@ total_counts_df = (
     data_w_columns_int_count.groupBy(year("YEAR").alias("YEAR"), "FIRST_NAME")
     .agg(sum("COUNT").alias("TOTAL"))
     .orderBy("TOTAL", ascending=False)
-).show()
+)
+
+# Specify a window spec to calculate the name with the largest total count per year.
+window_spec = Window.partitionBy("YEAR").orderBy(total_counts_df["TOTAL"].desc())
+top_baby_names_ranked = (
+    total_counts_df.select(
+        "Year", first("FIRST_NAME").over(window_spec).alias("FIRST_NAME"), "TOTAL"
+    )
+    .groupBy("YEAR")
+    .agg(first("FIRST_NAME").alias("FIRST_NAME"), max("TOTAL").alias("OCCURRENCES"))
+    .orderBy("YEAR")
+    .show()
+)
 
 # COMMAND ----------
 
