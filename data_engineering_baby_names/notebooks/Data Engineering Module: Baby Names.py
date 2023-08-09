@@ -86,7 +86,6 @@ dbutils.fs.head(baby_names_path)
 
 # Helper function for question 1.
 
-
 def extract_data(json_file_path, columns, multilinearity):
     # Read in raw json data.
     raw_df = spark.read.json(path=json_file_path, multiLine=multilinearity)
@@ -144,7 +143,6 @@ data_w_columns = extract_data(
 
 # Create temp table from DataFrame.
 data_w_columns.createOrReplaceTempView("baby_names")
-
 
 # COMMAND ----------
 
@@ -312,24 +310,32 @@ top_baby_names_ranked = (
 # COMMAND ----------
 
 # MAGIC %scala
-# MAGIC /* Writing sql code in scala for purposes of answering question #3: Do not grade for purposes of answering question #2 (Not written in best style as I am still learning). */
+# MAGIC /* Writing query code in scala for purposes of answering question #3: Do not grade for purposes of answering question #2 (Not written in best style as I am still learning). */
+# MAGIC /* Create Spark DataFrame in scala. */
+# MAGIC val data_w_columns_scala = spark.sql("select * from baby_names")
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC /* Writing query code in scala for purposes of answering question #3: Do not grade for purposes of answering question #2 (Not written in best style as I am still learning). */
 # MAGIC import org.apache.spark.sql.types.IntegerType
-# MAGIC import org.apache.spark.sql.types.DateType
 # MAGIC import org.apache.spark.sql.functions.{year, first, sum, max, desc}
 # MAGIC import org.apache.spark.sql.functions.col
-# MAGIC
-# MAGIC /* Create Spark DataFram. */
-# MAGIC val data_w_columns_scala = spark.sql("select * from baby_names")
+# MAGIC import org.apache.spark.sql.expressions.Window
 # MAGIC
 # MAGIC /* Cast count column in DataFrame to integer-type. */
 # MAGIC val data_w_columns_int_count_scala = data_w_columns_scala.withColumn("count",col("count").cast(IntegerType))
 # MAGIC
-# MAGIC /* Calculate total count for each baby name per year */
+# MAGIC /* Calculate total count for each baby name per year (SQL code inner query). */
 # MAGIC val total_count_df_scala = data_w_columns_int_count_scala.groupBy(year($"YEAR").alias("YEAR"), $"FIRST_NAME").agg(sum($"COUNT").alias("TOTAL")).orderBy(desc("TOTAL"))
 # MAGIC
-# MAGIC total_count_df_scala.show()
+# MAGIC /* Create window specification for windowing function. */
+# MAGIC val window = Window.partitionBy("YEAR").orderBy(desc("TOTAL"))
 # MAGIC
+# MAGIC /* Outer query using window function to calculate the most popular names per year. */
+# MAGIC val top_baby_names_ranked_scala = total_count_df_scala.select($"YEAR", first($"FIRST_NAME").over(window).alias("FIRST_NAME"), $"TOTAL").groupBy("YEAR").agg(first($"FIRST_NAME").alias("FIRST_NAME"), max($"TOTAL").alias("OCCURENCES")).orderBy("YEAR")
 # MAGIC
+# MAGIC top_baby_names_ranked_scala.show()
 
 # COMMAND ----------
 
