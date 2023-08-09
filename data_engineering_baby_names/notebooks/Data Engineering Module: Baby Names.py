@@ -401,7 +401,7 @@ top_baby_names_ranked.show()
 # MAGIC #### Advantages:
 # MAGIC SQL is the most well-known and widely used querying language in the world, and the simplest to implement and understand by most technical and non-technical parties. Spark also offers a variety of SQL performance tuning functions such as caching and hints that can be used to reduce the time and space complexity of the query (https://spark.apache.org/docs/latest/sql-performance-tuning.html). SQL performs best on smaller, simpler query workloads against well-organized and indexed relational database tables. In the case of this assignment, this is why the SQL query seemed to perform the fastest.
 # MAGIC #### Disadvantages: 
-# MAGIC SQL is not a robust language for more complex analytical and calculation-oriented workloads (such as those required by more advanced data science or ML algorithms.). SQL also does not easily support programmatic workflow tools such as variables and unit testing. If these are not required however, it results in the fastest performance on Spark.
+# MAGIC SQL is not a robust language for more complex analytical and calculation-oriented workloads (such as those required by more advanced data science or ML algorithms.). SQL also does not easily support programmatic workflow tools such as variables and unit testing.
 # MAGIC
 # MAGIC ### Python.
 # MAGIC #### Advantages:
@@ -456,8 +456,20 @@ visitors_path = "/interview-datasets/sa/births/births-with-visitor-data.json"
 
 # DBTITLE 1,#1 - Code Answer
 ## Hint: the code below will read in the downloaded JSON files. However, the xml column needs to be given structure. Consider using a UDF.
-#df = spark.read.option("inferSchema", True).json(visitors_path)
+from pyspark.sql.functions import udf, col
+from pyspark.sql.types import IntegerType, StructType, StructField, StringType
+import xml.etree.ElementTree as ET
 
+df = spark.read.option("inferSchema", True).json(visitors_path)
+df.select("visitors").show(1)
+
+visitor_xml_schema = StructType([
+  StructField("id", IntegerType(), True),
+  StructField("age", IntegerType(), True),
+  StructField("sex", StringType(), True)
+])
+
+  
 
 # COMMAND ----------
 
