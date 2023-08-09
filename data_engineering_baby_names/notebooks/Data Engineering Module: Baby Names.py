@@ -456,12 +456,9 @@ visitors_path = "/interview-datasets/sa/births/births-with-visitor-data.json"
 
 # DBTITLE 1,#1 - Code Answer
 ## Hint: the code below will read in the downloaded JSON files. However, the xml column needs to be given structure. Consider using a UDF.
-from pyspark.sql.functions import udf, col
+from pyspark.sql.functions import udf, col, explode
 from pyspark.sql.types import IntegerType, StructType, StructField, StringType
 import xml.etree.ElementTree as ET
-
-df = spark.read.option("inferSchema", True).json(visitors_path)
-df.select("visitors").show(1)
 
 visitor_xml_schema = StructType([
   StructField("id", IntegerType(), True),
@@ -469,7 +466,22 @@ visitor_xml_schema = StructType([
   StructField("sex", StringType(), True)
 ])
 
-  
+def select_xml(text, xpath):
+  nodes = [x.text for x in text.findall(xpath) if isinstance(x, ET.Element)]
+  return next(iter(nodes), None)
+
+def extract_xml_key_values(xml_payload):
+  text = ET.fromstring(xml_payload)
+  return {
+    "id": select_xml(text, "id"),
+    "age": select_xml(text, "age"),
+    "sex": select_xml(text, "sex")
+  }
+
+extract_xml_udf = udf(extract_xml_key_values, visitor_xml_schema)
+
+df = spark.read.option("inferSchema", True).json(visitors_path)
+df.withColumn("info", extract_xml_udf("visitors")).select("sid", "info.id", "info.age", "info.sex").show(100)
 
 # COMMAND ----------
 
