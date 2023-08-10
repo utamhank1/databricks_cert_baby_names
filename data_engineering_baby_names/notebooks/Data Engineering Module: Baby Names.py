@@ -492,9 +492,8 @@ print(f"Total Record Count in XML parsed DataFrame: {num_rows}")
 
 # COMMAND ----------
 
-# DBTITLE 1,#2 - Code Answer
 ## Hint: check for inconsistently capitalized field values. It will make your answer incorrect.
-from pyspark.sql.functions import upper, col
+from pyspark.sql.functions import upper, col, sum, count
 
 # Capitalize all records to mitigate discrepancies.
 df_with_parsed_xml_cols_caps = df_with_parsed_xml_cols.select(
@@ -510,35 +509,31 @@ df_with_parsed_xml_cols_caps.createOrReplaceTempView("baby_names_w_visitors")
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC SELECT * FROM BABY_NAMES_W_VISITORS LIMIT 10
+# DBTITLE 1,#2 - Code Answer
+# Calculate total number of visitors per birth per county.
+num_visitors_per_birth_per_county = df_with_parsed_xml_cols_caps.groupBy(
+    "BIRTH_ID", "COUNTY"
+).agg(count("ID").alias("NUM_VISITORS"))
+
+# Calculate the county with the highest avg number of visitors per birth.
+highest_avg_births_county_df = (
+    num_visitors_per_birth_per_county.groupBy("COUNTY")
+    .agg((sum("NUM_VISITORS") / count("BIRTH_ID")).alias("AVG_NUM_VISITORS"))
+    .orderBy(col("AVG_NUM_VISITORS").desc())
+)
+
+county_w_highest_avg_visitors, avg_num_visits = highest_avg_births_county_df.limit(
+    1
+).collect()[0]
+
+print(
+    f"The county with the highest number of visitors per birth was {county_w_highest_avg_visitors} county with an avg number of visitors per birth of {round(avg_num_visits, 3)}."
+)
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC /* Find the county with the highest average number of visitors across all births in that county */
-# MAGIC /*SELECT COUNTY, COUNT(DISTINCT(BIRTH_ID)) AS NUM_BIRTHS FROM BABY_NAMES_W_VISITORS GROUP BY COUNTY ORDER BY NUM_BIRTHS DESC */
-# MAGIC SELECT
-# MAGIC   COUNTY,
-# MAGIC   SUM(NUM_VISITORS) AS TOTAL_VISITORS,
-# MAGIC   COUNT(BIRTH_ID) AS NUM_BIRTHS,
-# MAGIC   SUM(NUM_VISITORS) / COUNT(BIRTH_ID) AS AVG_NUM_VISITORS
-# MAGIC FROM
-# MAGIC   (
-# MAGIC     SELECT
-# MAGIC       COUNTY,
-# MAGIC       BIRTH_ID,
-# MAGIC       COUNT(ID) AS NUM_VISITORS
-# MAGIC     FROM
-# MAGIC       BABY_NAMES_W_VISITORS
-# MAGIC     GROUP BY
-# MAGIC       BIRTH_ID,
-# MAGIC       COUNTY
-# MAGIC   )
-# MAGIC GROUP BY
-# MAGIC   COUNTY
-# MAGIC ORDER BY
-# MAGIC   TOTAL_VISITORS DESC
+# MAGIC SELECT * FROM BABY_NAMES_W_VISITORS LIMIT 10
 
 # COMMAND ----------
 
