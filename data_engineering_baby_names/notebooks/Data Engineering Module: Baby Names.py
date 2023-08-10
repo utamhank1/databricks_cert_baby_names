@@ -86,9 +86,12 @@ dbutils.fs.head(baby_names_path)
 
 # Helper function for question 1.
 
-def extract_data(json_file_path, columns, multilinearity):
+def extract_data(json_file_path, columns, multilinearity, s3path):
     # Read in raw json data.
     raw_df = spark.read.json(path=json_file_path, multiLine=multilinearity)
+
+    # Write raw_data to storage.
+    raw_df.write.format("json").save(f"{s3path}/raw_data.json", mode = "overwrite")
 
     # Expand "data" nested list into individual rows.
     exploded_df = raw_df.select(explode(raw_df.data))
@@ -109,6 +112,8 @@ def extract_data(json_file_path, columns, multilinearity):
       A boolean representing whether the file is single line json or multilinear.
     columns:
       A list of column headers for the extracted data.
+    s3path:
+      A string representing the path to store the read file for future access.
 
   Returns:
     A Pyspark DataFrame.
@@ -120,6 +125,7 @@ def extract_data(json_file_path, columns, multilinearity):
 # Please provide your code answer for Question 1 here
 from pyspark.sql.functions import explode
 json_file_path = "dbfs:/tmp/user_12df1ddd/rows.json"
+storage_file_path = "s3a://e2-interview-user-data/home/AROAUQVMTFU2DCVUR57M2:utamhank1@gmail.com"
 columns = [
     "sid",
     "id",
@@ -138,7 +144,7 @@ columns = [
 
 # Read in, and extract specific columns to top level from raw data with helper function.
 data_w_columns = extract_data(
-    json_file_path=json_file_path, columns=columns, multilinearity=True
+    json_file_path=json_file_path, columns=columns, multilinearity=True, s3path=storage_file_path  
 )
 
 # Create temp table from DataFrame.
@@ -150,7 +156,8 @@ data_w_columns.createOrReplaceTempView("baby_names")
 from pyspark.sql.functions import size, col
 
 num_test_passed = 0
-raw_df = spark.read.json(path=json_file_path, multiLine=True)
+
+raw_df = spark.read.format("json").load(path="s3a://e2-interview-user-data/home/AROAUQVMTFU2DCVUR57M2:utamhank1@gmail.com/raw_data.json")
 
 # Is the raw json DataFrame empty?
 if len(raw_df.head(1)) > 0:
@@ -292,19 +299,21 @@ total_counts_df = (
 
 # Specify a window spec to calculate the name with the largest total count per year.
 window_spec = Window.partitionBy("YEAR").orderBy(total_counts_df["TOTAL"].desc())
-top_baby_names_ranked = (
+top_baby_names = (
     total_counts_df.select(
         "Year", first("FIRST_NAME").over(window_spec).alias("FIRST_NAME"), "TOTAL"
     )
     .groupBy("YEAR")
     .agg(first("FIRST_NAME").alias("FIRST_NAME"), max("TOTAL").alias("OCCURRENCES"))
-    .orderBy("YEAR")
 )
 
 queryTimestamp = time.process_time()
 queryTime = queryTimestamp - castTimestamp
 print(f"Query runtime: {round(queryTime*1000)} ms")
 
+top_baby_names_disk = top_baby_names.write.save(f"{storage_file_path}/top_baby_names_ranked.parquet", mode="overwrite")
+
+top_baby_names_ranked = spark.read.load(f"{storage_file_path}/top_baby_names_ranked.parquet").orderBy("YEAR")
 top_baby_names_ranked.show()
 
 # COMMAND ----------
@@ -401,7 +410,7 @@ top_baby_names_ranked.show()
 # MAGIC #### Advantages:
 # MAGIC SQL is the most well-known and widely used querying language in the world, and the simplest to implement and understand by most technical and non-technical parties. Spark also offers a variety of SQL performance tuning functions such as caching and hints that can be used to reduce the time and space complexity of the query (https://spark.apache.org/docs/latest/sql-performance-tuning.html). SQL performs best on smaller, simpler query workloads against well-organized and indexed relational database tables. In the case of this assignment, this is why the SQL query seemed to perform the fastest.
 # MAGIC #### Disadvantages: 
-# MAGIC SQL is not a robust language for more complex analytical and calculation-oriented workloads (such as those required by more advanced data science or ML algorithms.). SQL also does not easily support programmatic workflow tools such as variables and unit testing. If these are not required however, it results in the fastest performance on Spark.
+# MAGIC SQL is not a robust language for more complex analytical and calculation-oriented workloads (such as those required by more advanced data science or ML algorithms.). SQL also does not easily support programmatic workflow tools such as variables and unit testing.
 # MAGIC
 # MAGIC ### Python.
 # MAGIC #### Advantages:
@@ -456,26 +465,165 @@ visitors_path = "/interview-datasets/sa/births/births-with-visitor-data.json"
 
 # DBTITLE 1,#1 - Code Answer
 ## Hint: the code below will read in the downloaded JSON files. However, the xml column needs to be given structure. Consider using a UDF.
-#df = spark.read.option("inferSchema", True).json(visitors_path)
+import xml.etree.ElementTree as ET
+from pyspark.sql.functions import explode
 
+visitor_xml_schema = "array<struct<id:string, age:string, sex:string>>"
+
+
+def xml_parser(key):
+    root_node = ET.fromstring(key)
+    return list(map(lambda t: t.attrib, root_node.findall("visitor")))
+
+
+extract_xml_udf = udf(xml_parser, visitor_xml_schema)
+
+df = spark.read.option("inferSchema", True).json(visitors_path)
+df_with_parsed_xml_cols = df.select(
+    "sid",
+    "county",
+    "created_at",
+    "first_name",
+    col("id").alias("birth_id"),  # Alias original id column to prevent ambiguity with parsed visitor id column.
+    "meta",
+    "name_count",
+    "position",
+    col("sex").alias("sex_assigned_birth"),  # Alias original sex column to prevent ambiguity with parsed visitor sex column.
+    "updated_at",
+    "year",
+    explode(extract_xml_udf("visitors")).alias("visitors"),
+).select("*", "visitors.*")
+
+# Calculate total number of records.
+num_rows = df_with_parsed_xml_cols.count()
+df_with_parsed_xml_cols.show(10)
+print(f"Total Record Count in XML parsed DataFrame: {num_rows}")
+
+# Total number of records in original data structure:
+num_records_raw_json_xml = df.count()
+
+print(f"num_records_raw_json_xml = {num_records_raw_json_xml}")
+
+# COMMAND ----------
+
+# DBTITLE 1,Data case normalization.
+from pyspark.sql.functions import upper, col, sum, count
+
+# Capitalize all records to mitigate discrepancies.
+df_with_parsed_xml_cols_caps = df_with_parsed_xml_cols.select(
+    *[
+        upper(col(x)).alias(x)
+        for x in df_with_parsed_xml_cols.columns
+        if x not in {"visitors"}
+    ]
+)
+
+# Create temp view for querying.
+df_with_parsed_xml_cols_caps.createOrReplaceTempView("baby_names_w_visitors")
+
+# COMMAND ----------
+
+# DBTITLE 1,Data integrity check (1): Duplicates.
+# MAGIC %sql
+# MAGIC /* Data integrity check with primary key exercise to figure out combination of columns to act as keys of data AND check if there are any duplicates in the outputted view. If the value of ID_CNT > 1 for any column, there are potential duplicates. */
+# MAGIC SELECT
+# MAGIC   COUNT(*) AS ID_CNT,
+# MAGIC   COUNTY,
+# MAGIC   ID AS VISITOR_ID,
+# MAGIC   BIRTH_ID,
+# MAGIC   SEX AS VISITOR_SEX,
+# MAGIC   AGE AS VISITOR_AGE
+# MAGIC FROM
+# MAGIC   BABY_NAMES_W_VISITORS
+# MAGIC GROUP BY
+# MAGIC   COUNTY,
+# MAGIC   VISITOR_ID,
+# MAGIC   BIRTH_ID,
+# MAGIC   VISITOR_SEX,
+# MAGIC   VISITOR_AGE
+# MAGIC ORDER BY
+# MAGIC   ID_CNT DESC
+# MAGIC LIMIT
+# MAGIC   5
+# MAGIC
+# MAGIC /* Primary key exercise data investigation query (no longer needed once PK has been identified) */
+# MAGIC --SELECT * FROM BABY_NAMES_W_VISITORS WHERE COUNTY = "WESTCHESTER" AND ID = "8357" AND BIRTH_ID = "00000000-0000-0000-2332-59BABEFD502D" AND SEX = "F"
+
+# COMMAND ----------
+
+# DBTITLE 1,Data integrity check (2): Total records.
+# MAGIC %sql
+# MAGIC /* Data integrity check to count the number of rows in the created view and ensure that it matches the dataframe with parsed xml -> Should be 176470. */
+# MAGIC
+# MAGIC SELECT COUNT(*) AS TOTAL_RECORDS FROM BABY_NAMES_W_VISITORS
+
+# COMMAND ----------
+
+# DBTITLE 1,Data integrity check (3): BIRTH_ID record count.
+# MAGIC %sql
+# MAGIC /* Data integrity check to ensure number unique BIRTH_ID's match the amount of records in the original json (with unparsed xml) -> should be 70499.*/
+# MAGIC SELECT
+# MAGIC   COUNT(DISTINCT(BIRTH_ID))
+# MAGIC FROM
+# MAGIC   BABY_NAMES_W_VISITORS
+
+# COMMAND ----------
+
+# DBTITLE 1,Data integrity check (4): Total visitors.
+# MAGIC %sql
+# MAGIC /* Data integrity check to count the number of total visitors which should equal the difference between the dataframe (with parsed xml) -> should be 176470.*/
+# MAGIC
+# MAGIC SELECT SUM(COUNT_VISITORS) AS TOTAL_VISITORS_IN_DATA FROM (
+# MAGIC SELECT BIRTH_ID, COUNT(ID) AS COUNT_VISITORS FROM BABY_NAMES_W_VISITORS GROUP BY BIRTH_ID)
 
 # COMMAND ----------
 
 # DBTITLE 1,#2 - Code Answer
-## Hint: check for inconsistently capitalized field values. It will make your answer incorrect.
+# Calculate total number of visitors per birth per county.
+num_visitors_per_birth_per_county = df_with_parsed_xml_cols_caps.groupBy(
+    "BIRTH_ID", "COUNTY"
+).agg(count("ID").alias("NUM_VISITORS"))
+
+# Calculate the county with the highest avg number of visitors per birth.
+highest_avg_births_county_df = (
+    num_visitors_per_birth_per_county.groupBy("COUNTY")
+    .agg((sum("NUM_VISITORS") / count("BIRTH_ID")).alias("AVG_NUM_VISITORS"))
+    .orderBy(col("AVG_NUM_VISITORS").desc())
+)
+
+county_w_highest_avg_visitors, avg_num_visits = highest_avg_births_county_df.limit(
+    1
+).collect()[0]
+
+print(
+    f"The county with the highest number of visitors per birth was {county_w_highest_avg_visitors} county with an avg number of visitors per birth of {round(avg_num_visits, 3)}."
+)
 
 # COMMAND ----------
 
 # DBTITLE 1,#3 - Code Answer
-## Hint: check for inconsistently capitalized field values. It will make your answer incorrect.
+# MAGIC %sql
+# MAGIC /* Find the average visitor age for a birth in the county of KINGS */
+# MAGIC SELECT
+# MAGIC   ROUND(AVG(AGE)) AS AVERAGE_VISITOR_AGE_KINGS
+# MAGIC FROM
+# MAGIC   BABY_NAMES_W_VISITORS
+# MAGIC WHERE
+# MAGIC   COUNTY = "KINGS"
 
 # COMMAND ----------
 
 # DBTITLE 1,#4 - Code Answer
-## Hint: check for inconsistently capitalized field values. It will make your answer incorrect.
-
-# COMMAND ----------
-
-# DBTITLE 1,#4 - Written Answer
-# MAGIC %md
-# MAGIC Please provide your written answer for Question 4 here
+# MAGIC %sql
+# MAGIC /* Find the most common birth visitor age in the county of KINGS */
+# MAGIC SELECT
+# MAGIC   AGE AS MOST_COMMON_VISITOR_AGE
+# MAGIC FROM
+# MAGIC   BABY_NAMES_W_VISITORS
+# MAGIC WHERE
+# MAGIC   COUNTY = "KINGS"
+# MAGIC GROUP BY
+# MAGIC   AGE
+# MAGIC ORDER BY
+# MAGIC   COUNT(*) DESC
+# MAGIC LIMIT(1)
