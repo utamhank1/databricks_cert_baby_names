@@ -299,17 +299,19 @@ total_counts_df = (
 
 # Specify a window spec to calculate the name with the largest total count per year.
 window_spec = Window.partitionBy("YEAR").orderBy(total_counts_df["TOTAL"].desc())
-top_baby_names_ranked_disk = (
+top_baby_names = (
     total_counts_df.select(
         "Year", first("FIRST_NAME").over(window_spec).alias("FIRST_NAME"), "TOTAL"
     )
     .groupBy("YEAR")
     .agg(first("FIRST_NAME").alias("FIRST_NAME"), max("TOTAL").alias("OCCURRENCES"))
-).write.save(f"{storage_file_path}/top_baby_names_ranked.parquet", mode="overwrite")
+)
 
 queryTimestamp = time.process_time()
 queryTime = queryTimestamp - castTimestamp
 print(f"Query runtime: {round(queryTime*1000)} ms")
+
+top_baby_names_disk = top_baby_names.write.save(f"{storage_file_path}/top_baby_names_ranked.parquet", mode="overwrite")
 
 top_baby_names_ranked = spark.read.load(f"{storage_file_path}/top_baby_names_ranked.parquet").orderBy("YEAR")
 top_baby_names_ranked.show()
