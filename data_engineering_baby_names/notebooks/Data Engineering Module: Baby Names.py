@@ -21,7 +21,13 @@
 # DBTITLE 1,Setup Env
 # This folder is for you to write any data as needed. Write access is restricted elsewhere. You can always read from dbfs.
 aws_role_id = "AROAUQVMTFU2DCVUR57M2"
-user = dbutils.notebook.entry_point.getDbutils().notebook().getContext().tags().apply('user')
+user = (
+    dbutils.notebook.entry_point.getDbutils()
+    .notebook()
+    .getContext()
+    .tags()
+    .apply("user")
+)
 userhome = f"s3a://e2-interview-user-data/home/{aws_role_id}:{user}"
 print(userhome)
 
@@ -50,20 +56,26 @@ print(userhome)
 # https://docs.python.org/3/library/hashlib.html#blake2
 from hashlib import blake2b
 
-user = dbutils.notebook.entry_point.getDbutils().notebook().getContext().tags().apply('user')
+user = (
+    dbutils.notebook.entry_point.getDbutils()
+    .notebook()
+    .getContext()
+    .tags()
+    .apply("user")
+)
 h = blake2b(digest_size=4)
 h.update(user.encode("utf-8"))
 display_name = "user_" + h.hexdigest()
 print("Display Name: " + display_name)
 
-dbutils.fs.cp('file:/tmp/rows.json', userhome + '/rows.json')
-dbutils.fs.cp(userhome + '/rows.json' ,f"dbfs:/tmp/{display_name}/rows.json")
+dbutils.fs.cp("file:/tmp/rows.json", userhome + "/rows.json")
+dbutils.fs.cp(userhome + "/rows.json", f"dbfs:/tmp/{display_name}/rows.json")
 baby_names_path = f"dbfs:/tmp/{display_name}/rows.json"
 
 print("Baby Names Path: " + baby_names_path)
 dbutils.fs.head(baby_names_path)
 
-# Ensure you use baby_names_path to answer the questions. A bug in Spark 2.X will cause your read to fail if you read the file from userhome. 
+# Ensure you use baby_names_path to answer the questions. A bug in Spark 2.X will cause your read to fail if you read the file from userhome.
 # Please note that dbfs:/tmp is cleaned up daily at 6AM pacific
 
 # COMMAND ----------
@@ -84,24 +96,36 @@ dbutils.fs.head(baby_names_path)
 
 # COMMAND ----------
 
-# Helper function for question 1.
+# Import all libraries needed for question 1.
+import time
+from pyspark.sql.functions import explode, size, col
 
+# Basic logging functionality.
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logging.getLogger("py4j.java_gateway").setLevel(logging.ERROR)
+
+# COMMAND ----------
+
+# Helper function for question 1.
 def extract_data(json_file_path, columns, multilinearity, s3path):
     # Read in raw json data.
     raw_df = spark.read.json(path=json_file_path, multiLine=multilinearity)
 
     # Write raw_data to storage.
-    raw_df.write.format("json").save(f"{s3path}/raw_data.json", mode = "overwrite")
+    raw_df.write.format("json").save(f"{s3path}/raw_data.json", mode="overwrite")
+    logging.info(f"raw_json written to {s3path}/raw_data.json")
 
     # Expand "data" nested list into individual rows.
     exploded_df = raw_df.select(explode(raw_df.data))
 
     # Expand "data" array in each row into columns with associated headers using python list comprehension.
-    data_w_columns = exploded_df.select(
+    data = exploded_df.select(
         *(exploded_df["col"][i].alias(elem) for i, elem in enumerate(columns))
     )
 
-    return data_w_columns
+    return data
     """
   This function extracts data from a given json_file_path and reads it to a dataframe object.
 
@@ -123,9 +147,14 @@ def extract_data(json_file_path, columns, multilinearity, s3path):
 
 # DBTITLE 1,Code Answer
 # Please provide your code answer for Question 1 here
-from pyspark.sql.functions import explode
 json_file_path = "dbfs:/tmp/user_12df1ddd/rows.json"
-storage_file_path = "s3a://e2-interview-user-data/home/AROAUQVMTFU2DCVUR57M2:utamhank1@gmail.com"
+storage_file_path = (
+    "s3a://e2-interview-user-data/home/AROAUQVMTFU2DCVUR57M2:utamhank1@gmail.com"
+)
+
+logging.debug(f"json_file_path is {json_file_path}")
+logging.debug(f"storage_file_path is {storage_file_path}")
+
 columns = [
     "sid",
     "id",
@@ -142,10 +171,19 @@ columns = [
     "count",
 ]
 
+logging.info(f"Columns requested are {columns}")
 # Read in, and extract specific columns to top level from raw data with helper function.
-data_w_columns = extract_data(
-    json_file_path=json_file_path, columns=columns, multilinearity=True, s3path=storage_file_path  
+data = extract_data(
+    json_file_path=json_file_path,
+    columns=columns,
+    multilinearity=True,
+    s3path=storage_file_path,
 )
+
+data.write.save(f"{storage_file_path}/data_w_columns.parquet", mode="overwrite")
+logging.info(f"Extracted data written to: {storage_file_path}/data_w_columns.parquet")
+
+data_w_columns = spark.read.load(f"{storage_file_path}/data_w_columns.parquet")
 
 # Create temp table from DataFrame.
 data_w_columns.createOrReplaceTempView("baby_names")
@@ -153,11 +191,10 @@ data_w_columns.createOrReplaceTempView("baby_names")
 # COMMAND ----------
 
 # Sanity Tests for Question 1 (Would implement as unittests if given databricks repo permissions).
-from pyspark.sql.functions import size, col
 
+# Load in raw_df for comparison purposes.
 num_test_passed = 0
-
-raw_df = spark.read.format("json").load(path="s3a://e2-interview-user-data/home/AROAUQVMTFU2DCVUR57M2:utamhank1@gmail.com/raw_data.json")
+raw_df = spark.read.format("json").load(path=f"{storage_file_path}/raw_data.json")
 
 # Is the raw json DataFrame empty?
 if len(raw_df.head(1)) > 0:
@@ -174,8 +211,13 @@ num_records_raw_json = (
 
 # Get count of rows in output Dataframe.
 rows_dataframe = data_w_columns.count()
-print(f"The number of records in the raw json is: {num_records_raw_json}")
-print(f"The number of rows in the output DataFrame is: {rows_dataframe}")
+if rows_dataframe == 0:
+    logging.warning("No rows in rows_dataframe.")
+elif num_records_raw_json == 0:
+    logging.warning("No records retreived from raw json.")
+else:
+    logging.info(f"The number of records in the raw json is: {num_records_raw_json}")
+    logging.info(f"The number of rows in the output DataFrame is: {rows_dataframe}")
 
 # Do the number of rows in the output dataframe match the number of elements in the raw json DataFrame?
 if num_records_raw_json == rows_dataframe:
@@ -279,7 +321,7 @@ from pyspark.sql.window import Window
 
 importTimestamp = time.process_time()
 importTime = importTimestamp - startTimestamp
-print(f"Package import runtime: {round(importTime*1000)} ms")
+logging.debug(f"Package import runtime: {round(importTime*1000)} ms")
 
 # Convert "count" column datatype from string to integer for aggregation.
 data_w_columns_int_count = data_w_columns.withColumn(
@@ -288,7 +330,7 @@ data_w_columns_int_count = data_w_columns.withColumn(
 
 castTimestamp = time.process_time()
 castTime = castTimestamp - importTimestamp
-print(f"Integer cast runtime: {round(castTime*1000)} ms")
+logging.debug(f"Integer cast runtime: {round(castTime*1000)} ms")
 
 # Calculate the total count of each baby name in each year (subquery in the SQL code).
 total_counts_df = (
@@ -309,11 +351,18 @@ top_baby_names = (
 
 queryTimestamp = time.process_time()
 queryTime = queryTimestamp - castTimestamp
-print(f"Query runtime: {round(queryTime*1000)} ms")
+logging.debug(f"Query runtime: {round(queryTime*1000)} ms")
 
-top_baby_names_disk = top_baby_names.write.save(f"{storage_file_path}/top_baby_names_ranked.parquet", mode="overwrite")
+top_baby_names_disk = top_baby_names.write.save(
+    f"{storage_file_path}/top_baby_names_ranked.parquet", mode="overwrite"
+)
+logging.info(
+    f"top_baby_names written to {storage_file_path}/top_baby_names_ranked.parquet"
+)
 
-top_baby_names_ranked = spark.read.load(f"{storage_file_path}/top_baby_names_ranked.parquet").orderBy("YEAR")
+top_baby_names_ranked = spark.read.load(
+    f"{storage_file_path}/top_baby_names_ranked.parquet"
+).orderBy("YEAR")
 top_baby_names_ranked.show()
 
 # COMMAND ----------
@@ -468,41 +517,68 @@ visitors_path = "/interview-datasets/sa/births/births-with-visitor-data.json"
 import xml.etree.ElementTree as ET
 from pyspark.sql.functions import explode
 
+# Define expected schema of xml.
 visitor_xml_schema = "array<struct<id:string, age:string, sex:string>>"
+logging.debug(f"XML schema provided is {visitor_xml_schema}")
 
 
+# Create function to parse xml.
 def xml_parser(key):
-    root_node = ET.fromstring(key)
+    root_node = ET.fromstring(key)  # Isolate root node in XML tree.
+    # Apply lambda function to all nodes-in-nodes to get a json list of values.
     return list(map(lambda t: t.attrib, root_node.findall("visitor")))
 
 
+# Defing function as udf.
 extract_xml_udf = udf(xml_parser, visitor_xml_schema)
 
 df = spark.read.option("inferSchema", True).json(visitors_path)
-df_with_parsed_xml_cols = df.select(
+df_with_parsed_xml = df.select(
     "sid",
     "county",
     "created_at",
     "first_name",
-    col("id").alias("birth_id"),  # Alias original id column to prevent ambiguity with parsed visitor id column.
+    col("id").alias(
+        "birth_id"
+    ),  # Alias original id column to prevent ambiguity with parsed visitor id column.
     "meta",
     "name_count",
     "position",
-    col("sex").alias("sex_assigned_birth"),  # Alias original sex column to prevent ambiguity with parsed visitor sex column.
+    col("sex").alias(
+        "sex_assigned_birth"
+    ),  # Alias original sex column to prevent ambiguity with parsed visitor sex column.
     "updated_at",
     "year",
     explode(extract_xml_udf("visitors")).alias("visitors"),
 ).select("*", "visitors.*")
 
+df_with_parsed_xml.write.save(
+    f"{storage_file_path}/df_with_parsed_xml.parquet", mode="overwrite"
+)
+logging.info(
+    f"df with parsed xml saved to {storage_file_path}/df_with_parsed_xml.parquet"
+)
+
+df_with_parsed_xml_cols = spark.read.load(
+    f"{storage_file_path}/df_with_parsed_xml.parquet"
+)
+
 # Calculate total number of records.
 num_rows = df_with_parsed_xml_cols.count()
 df_with_parsed_xml_cols.show(10)
-print(f"Total Record Count in XML parsed DataFrame: {num_rows}")
+if num_rows <= 0:
+    logging.warning(f"Total record count in XML parsed DataFrame is 0")
+else:
+    logging.debug(f"Total record count in XML parsed DataFrame: {num_rows}")
 
 # Total number of records in original data structure:
 num_records_raw_json_xml = df.count()
-
-print(f"num_records_raw_json_xml = {num_records_raw_json_xml}")
+if num_records_raw_json_xml <= 0:
+    logging.warning(f"Total record count in raw json (with unparsed XML) is 0")
+else:
+    logging.debug(
+        f"Number of records in raw json (with unparsed XML): {num_records_raw_json_xml}"
+    )
 
 # COMMAND ----------
 
@@ -545,17 +621,18 @@ df_with_parsed_xml_cols_caps.createOrReplaceTempView("baby_names_w_visitors")
 # MAGIC   ID_CNT DESC
 # MAGIC LIMIT
 # MAGIC   5
-# MAGIC
-# MAGIC /* Primary key exercise data investigation query (no longer needed once PK has been identified) */
-# MAGIC --SELECT * FROM BABY_NAMES_W_VISITORS WHERE COUNTY = "WESTCHESTER" AND ID = "8357" AND BIRTH_ID = "00000000-0000-0000-2332-59BABEFD502D" AND SEX = "F"
+# MAGIC   /* Primary key exercise data investigation query (no longer needed once PK has been identified) */
+# MAGIC   --SELECT * FROM BABY_NAMES_W_VISITORS WHERE COUNTY = "WESTCHESTER" AND ID = "8357" AND BIRTH_ID = "00000000-0000-0000-2332-59BABEFD502D" AND SEX = "F"
 
 # COMMAND ----------
 
 # DBTITLE 1,Data integrity check (2): Total records.
 # MAGIC %sql
 # MAGIC /* Data integrity check to count the number of rows in the created view and ensure that it matches the dataframe with parsed xml -> Should be 176470. */
-# MAGIC
-# MAGIC SELECT COUNT(*) AS TOTAL_RECORDS FROM BABY_NAMES_W_VISITORS
+# MAGIC SELECT
+# MAGIC   COUNT(*) AS TOTAL_RECORDS
+# MAGIC FROM
+# MAGIC   BABY_NAMES_W_VISITORS
 
 # COMMAND ----------
 
@@ -572,9 +649,18 @@ df_with_parsed_xml_cols_caps.createOrReplaceTempView("baby_names_w_visitors")
 # DBTITLE 1,Data integrity check (4): Total visitors.
 # MAGIC %sql
 # MAGIC /* Data integrity check to count the number of total visitors which should equal the difference between the dataframe (with parsed xml) -> should be 176470.*/
-# MAGIC
-# MAGIC SELECT SUM(COUNT_VISITORS) AS TOTAL_VISITORS_IN_DATA FROM (
-# MAGIC SELECT BIRTH_ID, COUNT(ID) AS COUNT_VISITORS FROM BABY_NAMES_W_VISITORS GROUP BY BIRTH_ID)
+# MAGIC SELECT
+# MAGIC   SUM(COUNT_VISITORS) AS TOTAL_VISITORS_IN_DATA
+# MAGIC FROM
+# MAGIC   (
+# MAGIC     SELECT
+# MAGIC       BIRTH_ID,
+# MAGIC       COUNT(ID) AS COUNT_VISITORS
+# MAGIC     FROM
+# MAGIC       BABY_NAMES_W_VISITORS
+# MAGIC     GROUP BY
+# MAGIC       BIRTH_ID
+# MAGIC   )
 
 # COMMAND ----------
 
@@ -596,7 +682,7 @@ county_w_highest_avg_visitors, avg_num_visits = highest_avg_births_county_df.lim
 ).collect()[0]
 
 print(
-    f"The county with the highest number of visitors per birth was {county_w_highest_avg_visitors} county with an avg number of visitors per birth of {round(avg_num_visits, 3)}."
+    f"The county with the highest number of visitors per birth was {county_w_highest_avg_visitors} county with an avg number of visitors per birth of {round(avg_num_visits, 2)}."
 )
 
 # COMMAND ----------
