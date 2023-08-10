@@ -86,9 +86,12 @@ dbutils.fs.head(baby_names_path)
 
 # Helper function for question 1.
 
-def extract_data(json_file_path, columns, multilinearity):
+def extract_data(json_file_path, columns, multilinearity, s3path):
     # Read in raw json data.
     raw_df = spark.read.json(path=json_file_path, multiLine=multilinearity)
+
+    # Write raw_data to storage.
+    raw_df.write.format("json").save(f"{s3path}/raw_data.json", mode = "overwrite")
 
     # Expand "data" nested list into individual rows.
     exploded_df = raw_df.select(explode(raw_df.data))
@@ -109,6 +112,8 @@ def extract_data(json_file_path, columns, multilinearity):
       A boolean representing whether the file is single line json or multilinear.
     columns:
       A list of column headers for the extracted data.
+    s3path:
+      A string representing the path to store the read file for future access.
 
   Returns:
     A Pyspark DataFrame.
@@ -120,6 +125,7 @@ def extract_data(json_file_path, columns, multilinearity):
 # Please provide your code answer for Question 1 here
 from pyspark.sql.functions import explode
 json_file_path = "dbfs:/tmp/user_12df1ddd/rows.json"
+storage_file_path = "s3a://e2-interview-user-data/home/AROAUQVMTFU2DCVUR57M2:utamhank1@gmail.com"
 columns = [
     "sid",
     "id",
@@ -138,7 +144,7 @@ columns = [
 
 # Read in, and extract specific columns to top level from raw data with helper function.
 data_w_columns = extract_data(
-    json_file_path=json_file_path, columns=columns, multilinearity=True
+    json_file_path=json_file_path, columns=columns, multilinearity=True, s3path=storage_file_path  
 )
 
 # Create temp table from DataFrame.
@@ -150,7 +156,8 @@ data_w_columns.createOrReplaceTempView("baby_names")
 from pyspark.sql.functions import size, col
 
 num_test_passed = 0
-raw_df = spark.read.json(path=json_file_path, multiLine=True)
+
+raw_df = spark.read.format("json").load(path="s3a://e2-interview-user-data/home/AROAUQVMTFU2DCVUR57M2:utamhank1@gmail.com/raw_data.json")
 
 # Is the raw json DataFrame empty?
 if len(raw_df.head(1)) > 0:
@@ -292,19 +299,19 @@ total_counts_df = (
 
 # Specify a window spec to calculate the name with the largest total count per year.
 window_spec = Window.partitionBy("YEAR").orderBy(total_counts_df["TOTAL"].desc())
-top_baby_names_ranked = (
+top_baby_names_ranked_disk = (
     total_counts_df.select(
         "Year", first("FIRST_NAME").over(window_spec).alias("FIRST_NAME"), "TOTAL"
     )
     .groupBy("YEAR")
     .agg(first("FIRST_NAME").alias("FIRST_NAME"), max("TOTAL").alias("OCCURRENCES"))
-    .orderBy("YEAR")
-)
+).write.save(f"{storage_file_path}/top_baby_names_ranked.parquet", mode="overwrite")
 
 queryTimestamp = time.process_time()
 queryTime = queryTimestamp - castTimestamp
 print(f"Query runtime: {round(queryTime*1000)} ms")
 
+top_baby_names_ranked = spark.read.load(f"{storage_file_path}/top_baby_names_ranked.parquet").orderBy("YEAR")
 top_baby_names_ranked.show()
 
 # COMMAND ----------
@@ -595,17 +602,26 @@ print(
 # DBTITLE 1,#3 - Code Answer
 # MAGIC %sql
 # MAGIC /* Find the average visitor age for a birth in the county of KINGS */
-# MAGIC SELECT ROUND(AVG(AGE)) AS AVERAGE_VISITOR_AGE_KINGS FROM BABY_NAMES_W_VISITORS WHERE COUNTY = "KINGS"
+# MAGIC SELECT
+# MAGIC   ROUND(AVG(AGE)) AS AVERAGE_VISITOR_AGE_KINGS
+# MAGIC FROM
+# MAGIC   BABY_NAMES_W_VISITORS
+# MAGIC WHERE
+# MAGIC   COUNTY = "KINGS"
 
 # COMMAND ----------
 
 # DBTITLE 1,#4 - Code Answer
 # MAGIC %sql
 # MAGIC /* Find the most common birth visitor age in the county of KINGS */
-# MAGIC SELECT AGE AS MOST_COMMON_VISITOR_AGE FROM BABY_NAMES_W_VISITORS WHERE COUNTY = "KINGS" GROUP BY AGE ORDER BY COUNT(*) DESC LIMIT(1)
-
-# COMMAND ----------
-
-# DBTITLE 1,#4 - Written Answer
-# MAGIC %md
-# MAGIC Please provide your written answer for Question 4 here
+# MAGIC SELECT
+# MAGIC   AGE AS MOST_COMMON_VISITOR_AGE
+# MAGIC FROM
+# MAGIC   BABY_NAMES_W_VISITORS
+# MAGIC WHERE
+# MAGIC   COUNTY = "KINGS"
+# MAGIC GROUP BY
+# MAGIC   AGE
+# MAGIC ORDER BY
+# MAGIC   COUNT(*) DESC
+# MAGIC LIMIT(1)
