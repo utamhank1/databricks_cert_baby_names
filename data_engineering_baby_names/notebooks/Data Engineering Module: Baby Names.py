@@ -88,50 +88,8 @@ dbutils.fs.head(baby_names_path)
 import time
 import logging
 logging.basicConfig(level=logging.DEBUG)
-logging.basicConfig(level=logging.INFO)
-logging.basicConfig(level=logging.WARNING)
-logging.basicConfig(level=logging.ERROR)
-logging.basicConfig(level=logging.CRITICAL)
+logging.getLogger("py4j.java_gateway").setLevel(logging.ERROR)
 from pyspark.sql.functions import explode, size, col
-
-# COMMAND ----------
-
-# DBTITLE 1,Code Answer
-# Please provide your code answer for Question 1 here
-json_file_path = "dbfs:/tmp/user_12df1ddd/rows.json"
-storage_file_path = "s3a://e2-interview-user-data/home/AROAUQVMTFU2DCVUR57M2:utamhank1@gmail.com"
-
-logging.debug(f"json_file_path is {json_file_path}")
-logging.debug(f"storage_file_path is {storage_file_path}")
-
-columns = [
-    "sid",
-    "id",
-    "position",
-    "created_at",
-    "created_meta",
-    "updated_at",
-    "updated_meta",
-    "meta",
-    "year",
-    "first_name",
-    "county",
-    "sex",
-    "count",
-]
-
-logging.info(f"columns requested are {columns}")
-# Read in, and extract specific columns to top level from raw data with helper function.
-data = extract_data(
-    json_file_path=json_file_path, columns=columns, multilinearity=True, s3path=storage_file_path  
-)
-
-data.write.save(f"{storage_file_path}/data_w_columns.parquet", mode="overwrite")
-
-data_w_columns = spark.read.load(f"{storage_file_path}/data_w_columns.parquet")
-
-# Create temp table from DataFrame.
-data_w_columns.createOrReplaceTempView("baby_names")
 
 # COMMAND ----------
 
@@ -168,6 +126,46 @@ def extract_data(json_file_path, columns, multilinearity, s3path):
   Returns:
     A Pyspark DataFrame.
   """
+
+# COMMAND ----------
+
+# DBTITLE 1,Code Answer
+# Please provide your code answer for Question 1 here
+json_file_path = "dbfs:/tmp/user_12df1ddd/rows.json"
+storage_file_path = "s3a://e2-interview-user-data/home/AROAUQVMTFU2DCVUR57M2:utamhank1@gmail.com"
+
+logging.info(f"json_file_path is {json_file_path}")
+logging.info(f"storage_file_path is {storage_file_path}")
+
+columns = [
+    "sid",
+    "id",
+    "position",
+    "created_at",
+    "created_meta",
+    "updated_at",
+    "updated_meta",
+    "meta",
+    "year",
+    "first_name",
+    "county",
+    "sex",
+    "count",
+]
+
+logging.info(f"Columns requested are {columns}")
+# Read in, and extract specific columns to top level from raw data with helper function.
+data = extract_data(
+    json_file_path=json_file_path, columns=columns, multilinearity=True, s3path=storage_file_path  
+)
+
+data.write.save(f"{storage_file_path}/data_w_columns.parquet", mode="overwrite")
+logging.info(f"Extracted data written to: {storage_file_path}/data_w_columns.parquet")
+
+data_w_columns = spark.read.load(f"{storage_file_path}/data_w_columns.parquet")
+
+# Create temp table from DataFrame.
+data_w_columns.createOrReplaceTempView("baby_names")
 
 # COMMAND ----------
 
