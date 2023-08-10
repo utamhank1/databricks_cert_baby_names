@@ -475,11 +475,11 @@ df_with_parsed_xml_cols = df.select(
     "county",
     "created_at",
     "first_name",
-    "id",
+    col("id").alias("birth_id"),  # Alias original id column to prevent ambiguity with parsed visitor id column.
     "meta",
     "name_count",
     "position",
-    "sex",
+    col("sex").alias("sex_assigned_birth"),  # Alias original sex column to prevent ambiguity with parsed visitor sex column.
     "updated_at",
     "year",
     explode(extract_xml_udf("visitors")).alias("visitors"),
@@ -487,14 +487,58 @@ df_with_parsed_xml_cols = df.select(
 
 # Calculate total number of records.
 num_rows = df_with_parsed_xml_cols.count()
+df_with_parsed_xml_cols.show(10)
 print(f"Total Record Count in XML parsed DataFrame: {num_rows}")
 
 # COMMAND ----------
 
 # DBTITLE 1,#2 - Code Answer
 ## Hint: check for inconsistently capitalized field values. It will make your answer incorrect.
-# Create temp table from DataFrame.
-df_with_parsed_xml_cols.createOrReplaceTempView("baby_names")
+from pyspark.sql.functions import upper, col
+
+# Capitalize all records to mitigate discrepancies.
+df_with_parsed_xml_cols_caps = df_with_parsed_xml_cols.select(
+    *[
+        upper(col(x)).alias(x)
+        for x in df_with_parsed_xml_cols.columns
+        if x not in {"visitors"}
+    ]
+)
+
+# Create temp view for querying.
+df_with_parsed_xml_cols_caps.createOrReplaceTempView("baby_names_w_visitors")
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT * FROM BABY_NAMES_W_VISITORS LIMIT 10
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC /* Find the county with the highest average number of visitors across all births in that county */
+# MAGIC /*SELECT COUNTY, COUNT(DISTINCT(BIRTH_ID)) AS NUM_BIRTHS FROM BABY_NAMES_W_VISITORS GROUP BY COUNTY ORDER BY NUM_BIRTHS DESC */
+# MAGIC SELECT
+# MAGIC   COUNTY,
+# MAGIC   SUM(NUM_VISITORS) AS TOTAL_VISITORS,
+# MAGIC   COUNT(BIRTH_ID) AS NUM_BIRTHS,
+# MAGIC   SUM(NUM_VISITORS) / COUNT(BIRTH_ID) AS AVG_NUM_VISITORS
+# MAGIC FROM
+# MAGIC   (
+# MAGIC     SELECT
+# MAGIC       COUNTY,
+# MAGIC       BIRTH_ID,
+# MAGIC       COUNT(ID) AS NUM_VISITORS
+# MAGIC     FROM
+# MAGIC       BABY_NAMES_W_VISITORS
+# MAGIC     GROUP BY
+# MAGIC       BIRTH_ID,
+# MAGIC       COUNTY
+# MAGIC   )
+# MAGIC GROUP BY
+# MAGIC   COUNTY
+# MAGIC ORDER BY
+# MAGIC   TOTAL_VISITORS DESC
 
 # COMMAND ----------
 
