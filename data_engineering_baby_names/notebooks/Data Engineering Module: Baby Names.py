@@ -538,12 +538,28 @@ print(
 # COMMAND ----------
 
 # DBTITLE 1,#3 - Code Answer
-## Hint: check for inconsistently capitalized field values. It will make your answer incorrect.
+# MAGIC %sql
+# MAGIC /* Hint: check for inconsistently capitalized field values. It will make your answer incorrect. */
+# MAGIC /* Find the average visitor age for a birth in the county of KINGS */
+# MAGIC SELECT ROUND(AVG(AGE)) AS AVERAGE_VISITOR_AGE_KINGS FROM BABY_NAMES_W_VISITORS WHERE COUNTY = "KINGS"
 
 # COMMAND ----------
 
 # DBTITLE 1,#4 - Code Answer
-## Hint: check for inconsistently capitalized field values. It will make your answer incorrect.
+# Hint: check for inconsistently capitalized field values. It will make your answer incorrect. 
+#Find the most common birth visitor age in the county of KINGS */
+from pyspark.sql.types import IntegerType
+from statistics import mode as calculate_mode
+
+# Define udf to calculate the mode.
+def calc_mode(values):
+  return calculate_mode(values)
+
+calc_mode_udf = udf(calc_mode, IntegerType())
+
+df_with_parsed_xml_cols_caps.select(calc_mode_udf("Age")).filter(col("COUNTY") == "KINGS").show()
+
+
 
 # COMMAND ----------
 
