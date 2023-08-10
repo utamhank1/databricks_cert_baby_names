@@ -363,7 +363,8 @@ logging.info(
 top_baby_names_ranked = spark.read.load(
     f"{storage_file_path}/top_baby_names_ranked.parquet"
 ).orderBy("YEAR")
-top_baby_names_ranked.show()
+
+display(top_baby_names_ranked)
 
 # COMMAND ----------
 
@@ -371,10 +372,13 @@ top_baby_names_ranked.show()
 # MAGIC %md
 # MAGIC Please provide your brief, written description of your code here.
 # MAGIC #### SQL Code.
-# MAGIC In this SQL query, we first run a subquery to calculate the occurences of each individual name in every year with a simple summation of the count column grouping by the name and the year and ordering by the summation. The outer query then selects only the first (and therefore the name with the highest count summation, since the subquery is ordered) first_name from the subquery for each year to output a table with the most popular baby name per year. This query runs with a space and time complexity of O(N) where N is the number of rows in the queried table.
+# MAGIC In this SQL query, we first run a subquery to calculate the occurrences of each individual name in every year with a simple summation of the count column grouping by the name and the year and ordering by the summation. The outer query then selects only the first (and therefore the name with the highest count summation, since the subquery is ordered) first_name from the subquery for each year to output a table with the most popular baby name per year. This query runs with a space and time complexity of O(N) where N is the number of rows in the queried table.
+# MAGIC
 # MAGIC
 # MAGIC #### Python Code.
-# MAGIC In the Python code we take a similar subquery approach using the DataFrame API. But before we do that, we have to prepare the data in the dataframe for mathematical operations, specifically, the *count* column, since it is by default a string-type. In lines 5-8 we cast the count column to an integer-type with the .cast() method.After the column is prepared, we first (1) replicate the subquery in the SQL code with the DataFrame API (lines 10-15). For the outer query (lines 17-27), we first implement window partitioning on the dataframe in step (1) to partition by year with the count of the name occurences, then select the first first_name from each partition on the highest count summation (max(TOTAL)) (representing the name the was the most popular in that given year). This code runs with a space and time complexity of O(N) where N is the number of rows in the DataFrame.
+# MAGIC In the Python code we take a similar subquery approach using the DataFrame API. But before we do that, we have to prepare the data in the dataframe for mathematical operations, specifically, the *count* column, since it is by default a string-type. In lines 5-8 we cast the count column to an integer-type with the .cast() method.After the column is prepared, we first (1) replicate the subquery in the SQL code with the DataFrame API (lines 10-15). For the outer query (lines 17-27), we first implement window partitioning on the dataframe in step (1) to partition by year with the count of the name occurrences, then select the first first_name from each partition on the highest count summation (max(TOTAL)) (representing the name the was the most popular in that given year). This code runs with a space and time complexity of O(N) where N is the number of rows in the DataFrame.
+# MAGIC
+# MAGIC
 
 # COMMAND ----------
 
@@ -444,7 +448,7 @@ top_baby_names_ranked.show()
 # MAGIC val queryRuntime = queryTimestamp - castTimestamp
 # MAGIC println(s"Query runtime: $queryRuntime ms")
 # MAGIC
-# MAGIC top_baby_names_ranked_scala.show()
+# MAGIC display(top_baby_names_ranked_scala)
 # MAGIC
 
 # COMMAND ----------
@@ -455,42 +459,61 @@ top_baby_names_ranked.show()
 # MAGIC #### *Are there any performance considerations when choosing a language API (SQL vs Python vs Scala) in the context of Spark?*
 # MAGIC There are advantages and disadvantages to either of the 3 approaches to querying the data in the context of Apache Spark.
 # MAGIC
+# MAGIC
 # MAGIC ### SQL.
 # MAGIC #### Advantages:
 # MAGIC SQL is the most well-known and widely used querying language in the world, and the simplest to implement and understand by most technical and non-technical parties. Spark also offers a variety of SQL performance tuning functions such as caching and hints that can be used to reduce the time and space complexity of the query (https://spark.apache.org/docs/latest/sql-performance-tuning.html). SQL performs best on smaller, simpler query workloads against well-organized and indexed relational database tables. In the case of this assignment, this is why the SQL query seemed to perform the fastest.
-# MAGIC #### Disadvantages: 
+# MAGIC #### Disadvantages:
 # MAGIC SQL is not a robust language for more complex analytical and calculation-oriented workloads (such as those required by more advanced data science or ML algorithms.). SQL also does not easily support programmatic workflow tools such as variables and unit testing.
+# MAGIC
 # MAGIC
 # MAGIC ### Python.
 # MAGIC #### Advantages:
-# MAGIC Python is the most popular and widely used general-purpose programming language in data engineering/data science. In the context of spark, the pyspark library brings the tools used in spark into any python VM. This, buttressed by the wide range of open source third party libraries, make python a great choice for complex analytical workflows and algorithms (such as those used in ML). 
+# MAGIC Python is the most popular and widely used general-purpose programming language in data engineering/data science. In the context of spark, the pyspark library brings the tools used in spark into any python VM. This, buttressed by the wide range of open source third party libraries, make python a great choice for complex analytical workflows and algorithms (such as those used in ML).
 # MAGIC #### Disadvantages:
-# MAGIC Python is a *interpreted* as opposed to compiled programming language, which makes it slower for a large number of operations than a compiled language like Java. In addition, code written with PySpark needs to be translated for the Java Virtual Machine (JVM) used by Spark, this can result in some performance overhead. For larger computational tasks however, the performance benefits can outweigh the costs, but in the case of this assignment, the SQL code performed faster due to the nature of the queried data and the operations performed. Note however, that python code used to extract and clean the data from the raw json before it was in a state to be queried by SQL, so overall python is the most versatile of the two.
+# MAGIC Python is a *interpreted* as opposed to a compiled programming language, which makes it slower for a large number of operations than a compiled language like Java. In addition, code written with PySpark needs to be translated for the Java Virtual Machine (JVM) used by Spark, this can result in some performance overhead. For larger computational tasks however, the performance benefits can outweigh the costs, but in the case of this assignment, the SQL code performed faster due to the nature of the queried data and the operations performed. Note however, that python code used to extract and clean the data from the raw json before it was in a state to be queried by SQL, so overall python is the most versatile of the two.
+# MAGIC
 # MAGIC
 # MAGIC ### Scala.
-# MAGIC #### Advantages: 
-# MAGIC Scala is a static, *compiled* general purpose programming language based on java, which is spark's original language. In theory, this leads to better performance with the underlying spark JVM engine. Libraries that are part of java can be natively run in scala and therefore the JVM. The compiled as opposed to interpretted nature of the language makes it faster for many operations. Scala has better support for functional programming techniques, which are generally faster than procedural ones due to avoidance of storing states and mutable data structures.
+# MAGIC #### Advantages:
+# MAGIC Scala is a static, *compiled* general purpose programming language based on java, which is spark's original language. In theory, this leads to better performance with the underlying spark JVM engine. Libraries that are part of java can be natively run in scala and therefore the JVM. The compiled as opposed to interpreted nature of the language makes it faster for many operations. Scala has better support for functional programming techniques, which are generally faster than procedural ones due to avoidance of storing states and mutable data structures.
 # MAGIC #### Disadvantages:
-# MAGIC Scala has a more verbose syntax and a steeper learning curve which can make it tougher to work with for beginner programmers. On a single node cluster, scala would have a performance advantage (all else being equal), but due to spark's computationally distributed nature, and the performance advantages of scala over python seem to decrease the more compute clusters that there are. In the case of our data, it seems that the query performance of both python and scala were similar, with python even having a small edge when it came to query time. There could be a few reasons for this: (1) Our compute cluster has four nodes as opposed to 1, (2) Using the pyspark module's Py4j tool (which allows the API to interface with the JVM), there are certain optimizations that are being made "under the hood" which aren't possible with scala, since scala code is run directly against the JVM. One of these is Catalyst optimizer, which can optimize high level code into a more efficient execution plan than native scala can alone. These may explain the slightly better performance we are getting using Python.
+# MAGIC Scala has a more verbose syntax and a steeper learning curve which can make it tougher to work with for beginner programmers. On a single node cluster, scala would have a performance advantage (all else being equal), but due to spark's computationally distributed nature, and the performance advantages of scala over python seem to decrease the more compute clusters that there are.
+# MAGIC
+# MAGIC
+# MAGIC In the case of our data, it seems that the query performance of both python and scala were similar, with python even having a small edge when it came to query time. There could be a few reasons for this: (1) Our compute cluster has four nodes as opposed to 1, (2) Using the pyspark module's Py4j tool (which allows the API to interface with the JVM), there are certain optimizations that are being made "under the hood" which aren't possible with scala, since scala code is run directly against the JVM. One of these is Catalyst optimizer, which can optimize high level code into a more efficient execution plan than native scala can alone. These may explain the slightly better performance we are getting using Python.
+# MAGIC
+# MAGIC
+# MAGIC
+# MAGIC
 # MAGIC
 # MAGIC
 # MAGIC
 # MAGIC
 # MAGIC #### *Are there any performance considerations when using different data representations (RDD, Dataframe) in Spark? Please explain, and provide references if possible. No code answer is required.*
 # MAGIC
-# MAGIC #### 
+# MAGIC
+# MAGIC ####
 # MAGIC RDD stands for "Resilient Distributed Dataset" and is the original Spark client-facing api for working with elements of data. A DataFrame is built on top of an RDD and is organized into columns. A Dataset extends DataFrames by providing type-safety and an object-oriented interface.
 # MAGIC
-# MAGIC From a performance standpoint RDD's are the slowest, but offer the most low-level control over the data for more complex transformations and to access specific RDD operations for available in Dataframes or Datasets. RDD's are better for handling unstructured data but require one to manually define a schema and require serialization to encode the data so are thus more computationally expensive to maintain.
 # MAGIC
-# MAGIC DataFrames are generally the fastest for data operations due to their ability to leverage query optimizations through the catalyst optimizer, no need for Java serialization, and associated 'garbage collection', auto-detected schema, and ability to better take advantage of distributed computing. Datasets are similar but offer additional safeguards such as complile time type-safety and thus are only available on R and Scala (since they are compiled languages). Datasets are generally faster than RDD's but slgihtly slower than DataFrames for most data operations.
+# MAGIC From a performance standpoint RDD's are the slowest, but offer the most low-level control over the data for more complex transformations, finer performance tuning, and to access specific RDD operations for available in Dataframes or Datasets. RDD's are better for handling unstructured data but require one to manually define a schema and require serialization to encode the data so are thus more computationally expensive to maintain.
 # MAGIC
-# MAGIC ##### Sources (for question on RDD vs. DataFrame): 
-# MAGIC ##### 
+# MAGIC
+# MAGIC DataFrames are generally the fastest for data operations due to their ability to leverage query optimizations through the catalyst optimizer, no need for Java serialization, and associated 'garbage collection', auto-detected schema, and ability to better take advantage of distributed computing. Datasets are similar but offer additional safeguards such as compile time type-safety and thus are only available on R and Scala (since they are compiled languages). Datasets are generally faster than RDD's but slightly slower than DataFrames for most data operations.
+# MAGIC
+# MAGIC
+# MAGIC ##### Sources (for question on RDD vs. DataFrame):
+# MAGIC #####
 # MAGIC 1. https://www.databricks.com/blog/2016/07/14/a-tale-of-three-apache-spark-apis-rdds-dataframes-and-datasets.html
 # MAGIC 2. https://phoenixnap.com/kb/rdd-vs-dataframe-vs-dataset
 # MAGIC 3. https://www.analyticsvidhya.com/blog/2020/11/what-is-the-difference-between-rdds-dataframes-and-datasets/
 # MAGIC 4. https://sparkbyexamples.com/spark/spark-rdd-vs-dataframe-vs-dataset/
+# MAGIC
+# MAGIC
+# MAGIC
+# MAGIC
+# MAGIC
 # MAGIC
 
 # COMMAND ----------
@@ -565,7 +588,6 @@ df_with_parsed_xml_cols = spark.read.load(
 
 # Calculate total number of records.
 num_rows = df_with_parsed_xml_cols.count()
-df_with_parsed_xml_cols.show(10)
 if num_rows <= 0:
     logging.warning(f"Total record count in XML parsed DataFrame is 0")
 else:
@@ -623,6 +645,15 @@ df_with_parsed_xml_cols_caps.createOrReplaceTempView("baby_names_w_visitors")
 # MAGIC   5
 # MAGIC   /* Primary key exercise data investigation query (no longer needed once PK has been identified) */
 # MAGIC   --SELECT * FROM BABY_NAMES_W_VISITORS WHERE COUNTY = "WESTCHESTER" AND ID = "8357" AND BIRTH_ID = "00000000-0000-0000-2332-59BABEFD502D" AND SEX = "F"
+
+# COMMAND ----------
+
+# DBTITLE 1,Note: Primary Key Exercise.
+# MAGIC %md
+# MAGIC The Primary key exercise is a way to converge upon the primary key of a relational database table. It is an iterative process and is commonly done in data engineering to determine a (typically minimum) set of columns that can define a unique row in a table. It can also be used to find if a table has duplicates.
+# MAGIC
+# MAGIC The process consists of querying the dataset with "key-candidate" columns, obtaining the row counts and running an 'investigation query' upon a set of "key-candidate" columns that have multiple rows to determine what other columns could be added as key-candidates. This processes repeats until every set of key-candidates has only one unique column. A tutorial can be found [here](https://community.rivery.io/t/querying-for-duplications-finding-upsert-merge-keys/288).
+# MAGIC
 
 # COMMAND ----------
 
@@ -713,3 +744,59 @@ print(
 # MAGIC ORDER BY
 # MAGIC   COUNT(*) DESC
 # MAGIC LIMIT(1)
+
+# COMMAND ----------
+
+# DBTITLE 1,Resources.
+# MAGIC %md
+# MAGIC ### Resources used:
+# MAGIC
+# MAGIC 1. https://suprabhasupi.medium.com/github-branch-naming-convention-d517d12cf96
+# MAGIC
+# MAGIC 2. https://google.github.io/styleguide/pyguide.html
+# MAGIC
+# MAGIC 3. https://www.databricks.com/blog/2023/01/30/introducing-upgrades-databricks-notebooks-new-editor-python-formatting-and-more
+# MAGIC
+# MAGIC 4. https://docs.databricks.com/en/languages/python.html
+# MAGIC
+# MAGIC 5. https://docs.databricks.com/en/notebooks/notebooks-code.html#include-documentation
+# MAGIC
+# MAGIC 6. https://docs.databricks.com/en/notebooks/share-code.html
+# MAGIC
+# MAGIC 7. https://docs.databricks.com/en/getting-started/dataframes-python.html
+# MAGIC
+# MAGIC 8. https://spark.apache.org/docs/latest/sql-data-sources-load-save-functions.html
+# MAGIC
+# MAGIC 9. https://community.databricks.com/t5/data-engineering/is-it-possible-to-import-functions-from-a-module-in-workspace/td-p/5199
+# MAGIC
+# MAGIC 10. https://docs.databricks.com/en/_extras/notebooks/source/files-in-repos.html
+# MAGIC
+# MAGIC 11. https://docs.databricks.com/administration-guide/workspace/index.html
+# MAGIC
+# MAGIC 12. https://spark.apache.org/docs/latest/sql-performance-tuning.html
+# MAGIC
+# MAGIC 13. https://www.projectpro.io/article/scala-vs-python-for-apache-spark/213
+# MAGIC
+# MAGIC 14. https://streamsets.com/blog/python-vs-sql/
+# MAGIC
+# MAGIC 16. https://www.simplilearn.com/scala-vs-python-article
+# MAGIC
+# MAGIC 17. https://levelup.gitconnected.com/is-python-spark-really-being-10x-slower-than-scala-spark-8a76c907adc8
+# MAGIC
+# MAGIC 18. https://www.databricks.com/blog/2016/07/14/a-tale-of-three-apache-spark-apis-rdds-dataframes-and-datasets.html
+# MAGIC
+# MAGIC 19. https://www.databricks.com/blog/2016/07/14/a-tale-of-three-apache-spark-apis-rdds-dataframes-and-datasets.html
+# MAGIC
+# MAGIC 20. https://phoenixnap.com/kb/rdd-vs-dataframe-vs-dataset
+# MAGIC https://www.analyticsvidhya.com/blog/2020/11/what-is-the-difference-between-rdds-dataframes-and-datasets/
+# MAGIC
+# MAGIC 21. https://sparkbyexamples.com/spark/spark-rdd-vs-dataframe-vs-dataset/
+# MAGIC
+# MAGIC 22. https://sparkbyexamples.com/pyspark/pyspark-udf-user-defined-function/
+# MAGIC
+# MAGIC 23. https://docs.python.org/3/library/xml.etree.elementtree.html
+# MAGIC
+# MAGIC 24. https://www.databricks.com/resources/ebook/big-book-data-engineering-2nd-edition?scid=7018Y000001Fi1mQAC&utm_medium=paid+search&utm_source=google&utm_campaign=17115062609&utm_adgroup=147011561656&utm_content=ebook&utm_offer=big-book-data-engineering-2nd-edition&utm_ad=662571282682&utm_term=databricks%20data%20engineering&gclid=Cj0KCQjwldKmBhCCARIsAP-0rfwwMQbVHdi2763folGzRydsqm_JBj0A2wA6evZWwKJr2zEF_9odGGgaAnVGEALw_wcB
+# MAGIC
+# MAGIC 25. https://community.rivery.io/t/querying-for-duplications-finding-upsert-merge-keys/288
+# MAGIC
