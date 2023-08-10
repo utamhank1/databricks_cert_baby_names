@@ -84,8 +84,58 @@ dbutils.fs.head(baby_names_path)
 
 # COMMAND ----------
 
-# Helper function for question 1.
+# Import all libraries needed in notebook.
+import time
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.CRITICAL)
+from pyspark.sql.functions import explode, size, col
 
+# COMMAND ----------
+
+# DBTITLE 1,Code Answer
+# Please provide your code answer for Question 1 here
+json_file_path = "dbfs:/tmp/user_12df1ddd/rows.json"
+storage_file_path = "s3a://e2-interview-user-data/home/AROAUQVMTFU2DCVUR57M2:utamhank1@gmail.com"
+
+logging.debug(f"json_file_path is {json_file_path}")
+logging.debug(f"storage_file_path is {storage_file_path}")
+
+columns = [
+    "sid",
+    "id",
+    "position",
+    "created_at",
+    "created_meta",
+    "updated_at",
+    "updated_meta",
+    "meta",
+    "year",
+    "first_name",
+    "county",
+    "sex",
+    "count",
+]
+
+logging.info(f"columns requested are {columns}")
+# Read in, and extract specific columns to top level from raw data with helper function.
+data = extract_data(
+    json_file_path=json_file_path, columns=columns, multilinearity=True, s3path=storage_file_path  
+)
+
+data.write.save(f"{storage_file_path}/data_w_columns.parquet", mode="overwrite")
+
+data_w_columns = spark.read.load(f"{storage_file_path}/data_w_columns.parquet")
+
+# Create temp table from DataFrame.
+data_w_columns.createOrReplaceTempView("baby_names")
+
+# COMMAND ----------
+
+# Helper function for question 1.
 def extract_data(json_file_path, columns, multilinearity, s3path):
     # Read in raw json data.
     raw_df = spark.read.json(path=json_file_path, multiLine=multilinearity)
@@ -97,11 +147,11 @@ def extract_data(json_file_path, columns, multilinearity, s3path):
     exploded_df = raw_df.select(explode(raw_df.data))
 
     # Expand "data" array in each row into columns with associated headers using python list comprehension.
-    data_w_columns = exploded_df.select(
+    data = exploded_df.select(
         *(exploded_df["col"][i].alias(elem) for i, elem in enumerate(columns))
     )
 
-    return data_w_columns
+    return data
     """
   This function extracts data from a given json_file_path and reads it to a dataframe object.
 
@@ -121,43 +171,11 @@ def extract_data(json_file_path, columns, multilinearity, s3path):
 
 # COMMAND ----------
 
-# DBTITLE 1,Code Answer
-# Please provide your code answer for Question 1 here
-from pyspark.sql.functions import explode
-json_file_path = "dbfs:/tmp/user_12df1ddd/rows.json"
-storage_file_path = "s3a://e2-interview-user-data/home/AROAUQVMTFU2DCVUR57M2:utamhank1@gmail.com"
-columns = [
-    "sid",
-    "id",
-    "position",
-    "created_at",
-    "created_meta",
-    "updated_at",
-    "updated_meta",
-    "meta",
-    "year",
-    "first_name",
-    "county",
-    "sex",
-    "count",
-]
-
-# Read in, and extract specific columns to top level from raw data with helper function.
-data_w_columns = extract_data(
-    json_file_path=json_file_path, columns=columns, multilinearity=True, s3path=storage_file_path  
-)
-
-# Create temp table from DataFrame.
-data_w_columns.createOrReplaceTempView("baby_names")
-
-# COMMAND ----------
-
 # Sanity Tests for Question 1 (Would implement as unittests if given databricks repo permissions).
-from pyspark.sql.functions import size, col
 
+# Load in raw_df for comparison purposes.
 num_test_passed = 0
-
-raw_df = spark.read.format("json").load(path="s3a://e2-interview-user-data/home/AROAUQVMTFU2DCVUR57M2:utamhank1@gmail.com/raw_data.json")
+raw_df = spark.read.format("json").load(path=f"{storage_file_path}/raw_data.json")
 
 # Is the raw json DataFrame empty?
 if len(raw_df.head(1)) > 0:
