@@ -490,9 +490,14 @@ num_rows = df_with_parsed_xml_cols.count()
 df_with_parsed_xml_cols.show(10)
 print(f"Total Record Count in XML parsed DataFrame: {num_rows}")
 
+# Total number of records in original data structure:
+num_records_raw_json_xml = df.count()
+
+print(f"num_records_raw_json_xml = {num_records_raw_json_xml}")
+
 # COMMAND ----------
 
-## Hint: check for inconsistently capitalized field values. It will make your answer incorrect.
+# DBTITLE 1,Data case normalization.
 from pyspark.sql.functions import upper, col, sum, count
 
 # Capitalize all records to mitigate discrepancies.
@@ -506,6 +511,61 @@ df_with_parsed_xml_cols_caps = df_with_parsed_xml_cols.select(
 
 # Create temp view for querying.
 df_with_parsed_xml_cols_caps.createOrReplaceTempView("baby_names_w_visitors")
+
+# COMMAND ----------
+
+# DBTITLE 1,Data integrity check (1): Duplicates.
+# MAGIC %sql
+# MAGIC /* Data integrity check with primary key exercise to figure out combination of columns to act as keys of data AND check if there are any duplicates in the outputted view. If the value of ID_CNT > 1 for any column, there are potential duplicates. */
+# MAGIC SELECT
+# MAGIC   COUNT(*) AS ID_CNT,
+# MAGIC   COUNTY,
+# MAGIC   ID AS VISITOR_ID,
+# MAGIC   BIRTH_ID,
+# MAGIC   SEX AS VISITOR_SEX,
+# MAGIC   AGE AS VISITOR_AGE
+# MAGIC FROM
+# MAGIC   BABY_NAMES_W_VISITORS
+# MAGIC GROUP BY
+# MAGIC   COUNTY,
+# MAGIC   VISITOR_ID,
+# MAGIC   BIRTH_ID,
+# MAGIC   VISITOR_SEX,
+# MAGIC   VISITOR_AGE
+# MAGIC ORDER BY
+# MAGIC   ID_CNT DESC
+# MAGIC LIMIT
+# MAGIC   5
+# MAGIC
+# MAGIC /* Primary key exercise data investigation query (no longer needed once PK has been identified) */
+# MAGIC --SELECT * FROM BABY_NAMES_W_VISITORS WHERE COUNTY = "WESTCHESTER" AND ID = "8357" AND BIRTH_ID = "00000000-0000-0000-2332-59BABEFD502D" AND SEX = "F"
+
+# COMMAND ----------
+
+# DBTITLE 1,Data integrity check (2): Total records.
+# MAGIC %sql
+# MAGIC /* Data integrity check to count the number of rows in the created view and ensure that it matches the dataframe with parsed xml -> Should be 176470. */
+# MAGIC
+# MAGIC SELECT COUNT(*) AS TOTAL_RECORDS FROM BABY_NAMES_W_VISITORS
+
+# COMMAND ----------
+
+# DBTITLE 1,Data integrity check (3): BIRTH_ID record count.
+# MAGIC %sql
+# MAGIC /* Data integrity check to ensure number unique BIRTH_ID's match the amount of records in the original json (with unparsed xml) -> should be 70499.*/
+# MAGIC SELECT
+# MAGIC   COUNT(DISTINCT(BIRTH_ID))
+# MAGIC FROM
+# MAGIC   BABY_NAMES_W_VISITORS
+
+# COMMAND ----------
+
+# DBTITLE 1,Data integrity check (4): Total visitors.
+# MAGIC %sql
+# MAGIC /* Data integrity check to count the number of total visitors which should equal the difference between the dataframe (with parsed xml) -> should be 176470.*/
+# MAGIC
+# MAGIC SELECT SUM(COUNT_VISITORS) AS TOTAL_VISITORS_IN_DATA FROM (
+# MAGIC SELECT BIRTH_ID, COUNT(ID) AS COUNT_VISITORS FROM BABY_NAMES_W_VISITORS GROUP BY BIRTH_ID)
 
 # COMMAND ----------
 
@@ -532,34 +592,17 @@ print(
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC SELECT * FROM BABY_NAMES_W_VISITORS LIMIT 10
-
-# COMMAND ----------
-
 # DBTITLE 1,#3 - Code Answer
 # MAGIC %sql
-# MAGIC /* Hint: check for inconsistently capitalized field values. It will make your answer incorrect. */
 # MAGIC /* Find the average visitor age for a birth in the county of KINGS */
 # MAGIC SELECT ROUND(AVG(AGE)) AS AVERAGE_VISITOR_AGE_KINGS FROM BABY_NAMES_W_VISITORS WHERE COUNTY = "KINGS"
 
 # COMMAND ----------
 
 # DBTITLE 1,#4 - Code Answer
-# Hint: check for inconsistently capitalized field values. It will make your answer incorrect. 
-#Find the most common birth visitor age in the county of KINGS */
-from pyspark.sql.types import IntegerType
-from statistics import mode as calculate_mode
-
-# Define udf to calculate the mode.
-def calc_mode(values):
-  return calculate_mode(values)
-
-calc_mode_udf = udf(calc_mode, IntegerType())
-
-df_with_parsed_xml_cols_caps.select(calc_mode_udf("Age")).filter(col("COUNTY") == "KINGS").show()
-
-
+# MAGIC %sql
+# MAGIC /* Find the most common birth visitor age in the county of KINGS */
+# MAGIC SELECT AGE AS MOST_COMMON_VISITOR_AGE FROM BABY_NAMES_W_VISITORS WHERE COUNTY = "KINGS" GROUP BY AGE ORDER BY COUNT(*) DESC LIMIT(1)
 
 # COMMAND ----------
 
