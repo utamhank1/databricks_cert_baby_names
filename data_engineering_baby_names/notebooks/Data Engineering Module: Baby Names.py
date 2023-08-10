@@ -363,7 +363,8 @@ logging.info(
 top_baby_names_ranked = spark.read.load(
     f"{storage_file_path}/top_baby_names_ranked.parquet"
 ).orderBy("YEAR")
-top_baby_names_ranked.show()
+
+display(top_baby_names_ranked)
 
 # COMMAND ----------
 
@@ -444,7 +445,7 @@ top_baby_names_ranked.show()
 # MAGIC val queryRuntime = queryTimestamp - castTimestamp
 # MAGIC println(s"Query runtime: $queryRuntime ms")
 # MAGIC
-# MAGIC top_baby_names_ranked_scala.show()
+# MAGIC display(top_baby_names_ranked_scala)
 # MAGIC
 
 # COMMAND ----------
@@ -565,7 +566,6 @@ df_with_parsed_xml_cols = spark.read.load(
 
 # Calculate total number of records.
 num_rows = df_with_parsed_xml_cols.count()
-df_with_parsed_xml_cols.show(10)
 if num_rows <= 0:
     logging.warning(f"Total record count in XML parsed DataFrame is 0")
 else:
@@ -713,3 +713,57 @@ print(
 # MAGIC ORDER BY
 # MAGIC   COUNT(*) DESC
 # MAGIC LIMIT(1)
+
+# COMMAND ----------
+
+# DBTITLE 1,Resources.
+# MAGIC %md
+# MAGIC ### Resources used:
+# MAGIC
+# MAGIC 1. https://suprabhasupi.medium.com/github-branch-naming-convention-d517d12cf96
+# MAGIC
+# MAGIC 2. https://google.github.io/styleguide/pyguide.html
+# MAGIC
+# MAGIC 3. https://www.databricks.com/blog/2023/01/30/introducing-upgrades-databricks-notebooks-new-editor-python-formatting-and-more
+# MAGIC
+# MAGIC 4. https://docs.databricks.com/en/languages/python.html
+# MAGIC
+# MAGIC 5. https://docs.databricks.com/en/notebooks/notebooks-code.html#include-documentation
+# MAGIC
+# MAGIC 6. https://docs.databricks.com/en/notebooks/share-code.html
+# MAGIC
+# MAGIC 7. https://docs.databricks.com/en/getting-started/dataframes-python.html
+# MAGIC
+# MAGIC 8. https://spark.apache.org/docs/latest/sql-data-sources-load-save-functions.html
+# MAGIC
+# MAGIC 9. https://community.databricks.com/t5/data-engineering/is-it-possible-to-import-functions-from-a-module-in-workspace/td-p/5199
+# MAGIC
+# MAGIC 10. https://docs.databricks.com/en/_extras/notebooks/source/files-in-repos.html
+# MAGIC
+# MAGIC 11. https://docs.databricks.com/administration-guide/workspace/index.html
+# MAGIC
+# MAGIC 12. https://spark.apache.org/docs/latest/sql-performance-tuning.html
+# MAGIC
+# MAGIC 13. https://www.projectpro.io/article/scala-vs-python-for-apache-spark/213
+# MAGIC
+# MAGIC 14. https://streamsets.com/blog/python-vs-sql/
+# MAGIC
+# MAGIC 16. https://www.simplilearn.com/scala-vs-python-article
+# MAGIC
+# MAGIC 17. https://levelup.gitconnected.com/is-python-spark-really-being-10x-slower-than-scala-spark-8a76c907adc8
+# MAGIC
+# MAGIC 18. https://www.databricks.com/blog/2016/07/14/a-tale-of-three-apache-spark-apis-rdds-dataframes-and-datasets.html
+# MAGIC
+# MAGIC 19. https://www.databricks.com/blog/2016/07/14/a-tale-of-three-apache-spark-apis-rdds-dataframes-and-datasets.html
+# MAGIC
+# MAGIC 20. https://phoenixnap.com/kb/rdd-vs-dataframe-vs-dataset
+# MAGIC https://www.analyticsvidhya.com/blog/2020/11/what-is-the-difference-between-rdds-dataframes-and-datasets/
+# MAGIC
+# MAGIC 21. https://sparkbyexamples.com/spark/spark-rdd-vs-dataframe-vs-dataset/
+# MAGIC
+# MAGIC 22. https://sparkbyexamples.com/pyspark/pyspark-udf-user-defined-function/
+# MAGIC
+# MAGIC 23. https://docs.python.org/3/library/xml.etree.elementtree.html
+# MAGIC
+# MAGIC 24. https://www.databricks.com/resources/ebook/big-book-data-engineering-2nd-edition?scid=7018Y000001Fi1mQAC&utm_medium=paid+search&utm_source=google&utm_campaign=17115062609&utm_adgroup=147011561656&utm_content=ebook&utm_offer=big-book-data-engineering-2nd-edition&utm_ad=662571282682&utm_term=databricks%20data%20engineering&gclid=Cj0KCQjwldKmBhCCARIsAP-0rfwwMQbVHdi2763folGzRydsqm_JBj0A2wA6evZWwKJr2zEF_9odGGgaAnVGEALw_wcB
+# MAGIC
