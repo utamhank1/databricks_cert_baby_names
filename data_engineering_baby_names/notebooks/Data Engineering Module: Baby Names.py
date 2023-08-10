@@ -457,6 +457,7 @@ visitors_path = "/interview-datasets/sa/births/births-with-visitor-data.json"
 # DBTITLE 1,#1 - Code Answer
 ## Hint: the code below will read in the downloaded JSON files. However, the xml column needs to be given structure. Consider using a UDF.
 import xml.etree.ElementTree as ET
+from pyspark.sql.functions import explode
 
 visitor_xml_schema = "array<struct<id:string, age:string, sex:string>>"
 
@@ -483,12 +484,17 @@ df_with_parsed_xml_cols = df.select(
     "year",
     explode(extract_xml_udf("visitors")).alias("visitors"),
 ).select("*", "visitors.*")
-df_with_parsed_xml_cols.show(10)
+
+# Calculate total number of records.
+num_rows = df_with_parsed_xml_cols.count()
+print(f"Total Record Count in XML parsed DataFrame: {num_rows}")
 
 # COMMAND ----------
 
 # DBTITLE 1,#2 - Code Answer
 ## Hint: check for inconsistently capitalized field values. It will make your answer incorrect.
+# Create temp table from DataFrame.
+df_with_parsed_xml_cols.createOrReplaceTempView("baby_names")
 
 # COMMAND ----------
 
