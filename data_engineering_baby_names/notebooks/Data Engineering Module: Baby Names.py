@@ -21,7 +21,13 @@
 # DBTITLE 1,Setup Env
 # This folder is for you to write any data as needed. Write access is restricted elsewhere. You can always read from dbfs.
 aws_role_id = "AROAUQVMTFU2DCVUR57M2"
-user = dbutils.notebook.entry_point.getDbutils().notebook().getContext().tags().apply('user')
+user = (
+    dbutils.notebook.entry_point.getDbutils()
+    .notebook()
+    .getContext()
+    .tags()
+    .apply("user")
+)
 userhome = f"s3a://e2-interview-user-data/home/{aws_role_id}:{user}"
 print(userhome)
 
@@ -50,20 +56,26 @@ print(userhome)
 # https://docs.python.org/3/library/hashlib.html#blake2
 from hashlib import blake2b
 
-user = dbutils.notebook.entry_point.getDbutils().notebook().getContext().tags().apply('user')
+user = (
+    dbutils.notebook.entry_point.getDbutils()
+    .notebook()
+    .getContext()
+    .tags()
+    .apply("user")
+)
 h = blake2b(digest_size=4)
 h.update(user.encode("utf-8"))
 display_name = "user_" + h.hexdigest()
 print("Display Name: " + display_name)
 
-dbutils.fs.cp('file:/tmp/rows.json', userhome + '/rows.json')
-dbutils.fs.cp(userhome + '/rows.json' ,f"dbfs:/tmp/{display_name}/rows.json")
+dbutils.fs.cp("file:/tmp/rows.json", userhome + "/rows.json")
+dbutils.fs.cp(userhome + "/rows.json", f"dbfs:/tmp/{display_name}/rows.json")
 baby_names_path = f"dbfs:/tmp/{display_name}/rows.json"
 
 print("Baby Names Path: " + baby_names_path)
 dbutils.fs.head(baby_names_path)
 
-# Ensure you use baby_names_path to answer the questions. A bug in Spark 2.X will cause your read to fail if you read the file from userhome. 
+# Ensure you use baby_names_path to answer the questions. A bug in Spark 2.X will cause your read to fail if you read the file from userhome.
 # Please note that dbfs:/tmp is cleaned up daily at 6AM pacific
 
 # COMMAND ----------
@@ -87,8 +99,10 @@ dbutils.fs.head(baby_names_path)
 # Import all libraries needed for question 1.
 import time
 from pyspark.sql.functions import explode, size, col
+
 # Basic logging functionality.
 import logging
+
 logging.basicConfig(level=logging.DEBUG)
 logging.getLogger("py4j.java_gateway").setLevel(logging.ERROR)
 
@@ -100,9 +114,9 @@ def extract_data(json_file_path, columns, multilinearity, s3path):
     raw_df = spark.read.json(path=json_file_path, multiLine=multilinearity)
 
     # Write raw_data to storage.
-    raw_df.write.format("json").save(f"{s3path}/raw_data.json", mode = "overwrite")
+    raw_df.write.format("json").save(f"{s3path}/raw_data.json", mode="overwrite")
     logging.info(f"raw_json written to {s3path}/raw_data.json")
-    
+
     # Expand "data" nested list into individual rows.
     exploded_df = raw_df.select(explode(raw_df.data))
 
@@ -134,7 +148,9 @@ def extract_data(json_file_path, columns, multilinearity, s3path):
 # DBTITLE 1,Code Answer
 # Please provide your code answer for Question 1 here
 json_file_path = "dbfs:/tmp/user_12df1ddd/rows.json"
-storage_file_path = "s3a://e2-interview-user-data/home/AROAUQVMTFU2DCVUR57M2:utamhank1@gmail.com"
+storage_file_path = (
+    "s3a://e2-interview-user-data/home/AROAUQVMTFU2DCVUR57M2:utamhank1@gmail.com"
+)
 
 logging.debug(f"json_file_path is {json_file_path}")
 logging.debug(f"storage_file_path is {storage_file_path}")
@@ -158,7 +174,10 @@ columns = [
 logging.info(f"Columns requested are {columns}")
 # Read in, and extract specific columns to top level from raw data with helper function.
 data = extract_data(
-    json_file_path=json_file_path, columns=columns, multilinearity=True, s3path=storage_file_path  
+    json_file_path=json_file_path,
+    columns=columns,
+    multilinearity=True,
+    s3path=storage_file_path,
 )
 
 data.write.save(f"{storage_file_path}/data_w_columns.parquet", mode="overwrite")
@@ -334,10 +353,16 @@ queryTimestamp = time.process_time()
 queryTime = queryTimestamp - castTimestamp
 logging.debug(f"Query runtime: {round(queryTime*1000)} ms")
 
-top_baby_names_disk = top_baby_names.write.save(f"{storage_file_path}/top_baby_names_ranked.parquet", mode="overwrite")
-logging.info(f"top_baby_names written to {storage_file_path}/top_baby_names_ranked.parquet")
+top_baby_names_disk = top_baby_names.write.save(
+    f"{storage_file_path}/top_baby_names_ranked.parquet", mode="overwrite"
+)
+logging.info(
+    f"top_baby_names written to {storage_file_path}/top_baby_names_ranked.parquet"
+)
 
-top_baby_names_ranked = spark.read.load(f"{storage_file_path}/top_baby_names_ranked.parquet").orderBy("YEAR")
+top_baby_names_ranked = spark.read.load(
+    f"{storage_file_path}/top_baby_names_ranked.parquet"
+).orderBy("YEAR")
 top_baby_names_ranked.show()
 
 # COMMAND ----------
@@ -501,8 +526,9 @@ logging.debug(f"XML schema provided is {visitor_xml_schema}")
 def xml_parser(key):
     root_node = ET.fromstring(key)  # Isolate root node in XML tree.
     # Apply lambda function to all nodes-in-nodes to get a json list of values.
-    return list(map(lambda t: t.attrib, root_node.findall("visitor")))  
-  
+    return list(map(lambda t: t.attrib, root_node.findall("visitor")))
+
+
 # Defing function as udf.
 extract_xml_udf = udf(xml_parser, visitor_xml_schema)
 
@@ -512,35 +538,47 @@ df_with_parsed_xml = df.select(
     "county",
     "created_at",
     "first_name",
-    col("id").alias("birth_id"),  # Alias original id column to prevent ambiguity with parsed visitor id column.
+    col("id").alias(
+        "birth_id"
+    ),  # Alias original id column to prevent ambiguity with parsed visitor id column.
     "meta",
     "name_count",
     "position",
-    col("sex").alias("sex_assigned_birth"),  # Alias original sex column to prevent ambiguity with parsed visitor sex column.
+    col("sex").alias(
+        "sex_assigned_birth"
+    ),  # Alias original sex column to prevent ambiguity with parsed visitor sex column.
     "updated_at",
     "year",
     explode(extract_xml_udf("visitors")).alias("visitors"),
 ).select("*", "visitors.*")
 
-df_with_parsed_xml.write.save(f"{storage_file_path}/df_with_parsed_xml.parquet", mode="overwrite")
-logging.info(f"df with parsed xml saved to {storage_file_path}/df_with_parsed_xml.parquet")
+df_with_parsed_xml.write.save(
+    f"{storage_file_path}/df_with_parsed_xml.parquet", mode="overwrite"
+)
+logging.info(
+    f"df with parsed xml saved to {storage_file_path}/df_with_parsed_xml.parquet"
+)
 
-df_with_parsed_xml_cols = spark.read.load(f"{storage_file_path}/df_with_parsed_xml.parquet")
+df_with_parsed_xml_cols = spark.read.load(
+    f"{storage_file_path}/df_with_parsed_xml.parquet"
+)
 
 # Calculate total number of records.
 num_rows = df_with_parsed_xml_cols.count()
 df_with_parsed_xml_cols.show(10)
 if num_rows <= 0:
-  logging.warning(f"Total record count in XML parsed DataFrame is 0")
+    logging.warning(f"Total record count in XML parsed DataFrame is 0")
 else:
-  logging.debug(f"Total record count in XML parsed DataFrame: {num_rows}")
+    logging.debug(f"Total record count in XML parsed DataFrame: {num_rows}")
 
 # Total number of records in original data structure:
 num_records_raw_json_xml = df.count()
 if num_records_raw_json_xml <= 0:
-  logging.warning(f"Total record count in raw json (with unparsed XML) is 0")
+    logging.warning(f"Total record count in raw json (with unparsed XML) is 0")
 else:
-  logging.debug(f"Number of records in raw json (with unparsed XML): {num_records_raw_json_xml}")
+    logging.debug(
+        f"Number of records in raw json (with unparsed XML): {num_records_raw_json_xml}"
+    )
 
 # COMMAND ----------
 
@@ -583,17 +621,18 @@ df_with_parsed_xml_cols_caps.createOrReplaceTempView("baby_names_w_visitors")
 # MAGIC   ID_CNT DESC
 # MAGIC LIMIT
 # MAGIC   5
-# MAGIC
-# MAGIC /* Primary key exercise data investigation query (no longer needed once PK has been identified) */
-# MAGIC --SELECT * FROM BABY_NAMES_W_VISITORS WHERE COUNTY = "WESTCHESTER" AND ID = "8357" AND BIRTH_ID = "00000000-0000-0000-2332-59BABEFD502D" AND SEX = "F"
+# MAGIC   /* Primary key exercise data investigation query (no longer needed once PK has been identified) */
+# MAGIC   --SELECT * FROM BABY_NAMES_W_VISITORS WHERE COUNTY = "WESTCHESTER" AND ID = "8357" AND BIRTH_ID = "00000000-0000-0000-2332-59BABEFD502D" AND SEX = "F"
 
 # COMMAND ----------
 
 # DBTITLE 1,Data integrity check (2): Total records.
 # MAGIC %sql
 # MAGIC /* Data integrity check to count the number of rows in the created view and ensure that it matches the dataframe with parsed xml -> Should be 176470. */
-# MAGIC
-# MAGIC SELECT COUNT(*) AS TOTAL_RECORDS FROM BABY_NAMES_W_VISITORS
+# MAGIC SELECT
+# MAGIC   COUNT(*) AS TOTAL_RECORDS
+# MAGIC FROM
+# MAGIC   BABY_NAMES_W_VISITORS
 
 # COMMAND ----------
 
