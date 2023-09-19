@@ -1,5 +1,5 @@
 # Databricks notebook source
-# MAGIC %md # SA coding assessment: Data Engineering, Baby Names
+# MAGIC %md # DB Coding Certification Test: Baby Names
 # MAGIC ## Version 2022.02
 # MAGIC
 # MAGIC What you'll do:
